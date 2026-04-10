@@ -32,23 +32,8 @@ with st.sidebar:
             "Περιγραφή": desc,
             "Κατηγορία": cat,
             "Ποσό (€)": amount,
-            "Πληρωμή από": payer
-        }])
-        updated_df = pd.concat([data, new_row], ignore_index=True)
-                 conn.update(spreadsheet=st.secrets["connections"]["gsheets"]["spreadsheet"], data=updated_df)
-        st.success("Αποθηκεύτηκε μόνιμα!")
-        st.rerun()
-
-# Εμφάνιση συνόλων
-if not data.empty:
-    total = data["Ποσό (€)"].sum()
-    father = data[data["Πληρωμή από"] == "Πατέρας"]["Ποσό (€)"].sum()
-    
-    c1, c2 = st.columns(2)
-    c1.metric("Συνολικό Κόστος", f"{total:.2f} €")
-    c2.metric("Πληρωμές Πατέρα", f"{father:.2f} €")
-    
-    st.markdown("---")
-    st.dataframe(data, use_container_width=True)
-else:
-    st.info("Δεν υπάρχουν ακόμα καταχωρήσεις.")
+          if submitted:
+        new_data = pd.DataFrame([{"Ημερομηνία": str(date), "Περιγραφή": description, "Κατηγορία": category, "Ποσό (€)": amount, "Πληρωμή από": payer}])
+        updated_df = pd.concat([df, new_data], ignore_index=True)
+        conn.update(spreadsheet=st.secrets["connections"]["gsheets"]["spreadsheet"], data=updated_df)
+        st.success("Η καταχώρηση έγινε με επιτυχία!")
