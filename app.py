@@ -2,38 +2,59 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
-st.set_page_config(page_title="Ανακαίνιση", layout="wide")
-st.title("🏡 Καταγραφή Εξόδων Ανακαίνισης")
+st.set_page_config(page_title="Καταγραφή Εξόδων Ανακαίνισης", layout="centered")
 
-conn = st.connection("gsheets", type=GSheetsConnection)
-# Επικόλλησε το URL σου ανάμεσα στα εισαγωγικά παρακάτω:
-url = "https://docs.google.com/spreadsheets/d/1GTsVsYbY2e5GW1WN70pBviq2599SenI0N3OFfYE6Imo/edit?gid=0#gid=0" 
+st.title("🏠 Καταγραφή Εξόδων Ανακαίνισης")
 
+# Σύνδεση με το Google Sheet
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Διάβασμα δεδομένων
-try:
-    data = conn.read(spreadsheet=url)
-    data = data.dropna(how="all")
-except:
-    data = pd.DataFrame(columns=["Ημερομηνία", "Περιγραφή", "Κατηγορία", "Ποσό (€)", "Πληρωμή από"])
+# Ανάγνωση δεδομένων
+df = conn.read()
 
+# Φόρμα εισαγωγής
 with st.sidebar:
     st.header("➕ Νέο Έξοδο")
-    date = st.date_input("Ημερομηνία")
-    desc = st.text_input("Περιγραφή")
-    cat = st.selectbox("Κατηγορία", ["Οικοδομικά", "Ηλεκτρολογικά", "Υδραυλικά", "Δάπεδα", "Ξυλουργικά", "Λοιπά"])
-    amount = st.number_input("Ποσό (€)", min_value=0.0, step=1.0)
-    payer = st.radio("Πληρωμή από", ["Εγώ", "Πατέρας"])
-    
-    if st.button("Καταχώρηση"):
-        new_row = pd.DataFrame([{
-            "Ημερομηνία": str(date),
-            "Περιγραφή": desc,
-            "Κατηγορία": cat,
-            "Ποσό (€)": amount,
-          if submitted:
-        new_data = pd.DataFrame([{"Ημερομηνία": str(date), "Περιγραφή": description, "Κατηγορία": category, "Ποσό (€)": amount, "Πληρωμή από": payer}])
-        updated_df = pd.concat([df, new_data], ignore_index=True)
-        conn.update(spreadsheet=st.secrets["connections"]["gsheets"]["spreadsheet"], data=updated_df)
-        st.success("Η καταχώρηση έγινε με επιτυχία!")
+    with st.form("expense_form", clear_on_submit=True):
+        date = st.date_input("Ημερομηνία")
+        description = st.text_input("Περιγραφή")
+        category = st.selectbox("Κατηγορία", ["Υδραυλικά", "Ηλεκτρολογικά", "Οικοδομικά", "Έπιπλα", "Άλλο"])
+        amount = st.number_input("Ποσό (€)", min_value=0.0, format="%.2f")
+        payer = st.radio("Πληρωμή από", ["Εγώ", "Πατέρας"])
+        
+        submitted = st.form_submit_button("Καταχώρηση")
+
+    if submitted:
+        if description and amount > 0:
+            # Δημιουργία νέας γραμμής
+            new_row = pd.DataFrame([{
+                "Ημερομηνία": str(date),
+                "Περιγραφή": description,
+                "Κατηγορία": category,
+                "Ποσό (€)": amount,
+                "Πληρωμή από": payer
+            }])
+            
+            # Προσθήκη στο υπάρχον DataFrame
+            updated_df = pd.concat([df, new_row], ignore_index=True)
+            
+            # Ενημέρωση του Google Sheet
+            conn.update(spreadsheet=st.secrets["connections"]["gsheets"]["spreadsheet"], data=updated_df)
+            st.success("Η καταχώρηση αποθηκεύτηκε!")
+            st.rerun()
+        else:
+            st.error("Παρακαλώ συμπληρώστε Περιγραφή και Ποσό.")
+
+# Εμφάνιση στατιστικών
+if not df.empty:
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Συνολικά Έξοδα", f"{df['Ποσό (€)'].sum():.2f} €")
+    with col2:
+        mine = df[df['Πληρωμή από'] == 'Εγώ']['Ποσό (€)'].sum()
+        st.metric("Πληρωμένα από εμένα", f"{mine:.2f} €")
+
+    st.subheader("Λίστα Εξόδων")
+    st.dataframe(df, use_container_width=True)
+else:
+    st.info("Δεν υπάρχουν ακόμα καταχωρήσεις.")
