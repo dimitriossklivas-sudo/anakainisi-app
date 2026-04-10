@@ -35,7 +35,7 @@ with st.sidebar:
             "Πληρωμή από": payer
         }])
         updated_df = pd.concat([data, new_row], ignore_index=True)
-       conn.update(spreadsheet=st.secrets["connections"]["gsheets"]["spreadsheet"], data=updated_df)
+                 conn.update(spreadsheet=st.secrets["connections"]["gsheets"]["spreadsheet"], data=updated_df)
         st.success("Αποθηκεύτηκε μόνιμα!")
         st.rerun()
 
