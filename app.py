@@ -5,7 +5,7 @@ import pandas as pd
 st.set_page_config(page_title="Ανακαίνιση", layout="wide")
 st.title("🏡 Καταγραφή Εξόδων Ανακαίνισης")
 
-# Σύνδεση με το Google Sheet σου
+conn = st.connection("gsheets", type=GSheetsConnection)
 # Επικόλλησε το URL σου ανάμεσα στα εισαγωγικά παρακάτω:
 url = "https://docs.google.com/spreadsheets/d/1GTsVsYbY2e5GW1WN70pBviq2599SenI0N3OFfYE6Imo/edit?gid=0#gid=0" 
 
@@ -35,7 +35,7 @@ with st.sidebar:
             "Πληρωμή από": payer
         }])
         updated_df = pd.concat([data, new_row], ignore_index=True)
-        conn.update(spreadsheet=url, data=updated_df)
+       conn.update(spreadsheet=st.secrets["connections"]["gsheets"]["spreadsheet"], data=updated_df)
         st.success("Αποθηκεύτηκε μόνιμα!")
         st.rerun()
 
