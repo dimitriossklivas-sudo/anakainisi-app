@@ -9,7 +9,11 @@ st.title("🏠 Καταγραφή Εξόδων Ανακαίνισης")
 # Σύνδεση με το Google Sheet
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-df = conn.read(spreadsheet="https://docs.google.com/spreadsheets/d/1GTsVsYbY2e5Gw1WN7OpBviq2599SeNI0N3OfFYE6lmo/edit?gid=0")df = conn.read()
+# URL του Sheet σου
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1GTsVsYbY2e5Gw1WN7OpBviq2599SeNI0N3OfFYE6lmo/edit?gid=0"
+
+# Ανάγνωση δεδομένων
+df = conn.read(spreadsheet=SHEET_URL)
 
 # Φόρμα εισαγωγής
 with st.sidebar:
@@ -25,7 +29,6 @@ with st.sidebar:
 
     if submitted:
         if description and amount > 0:
-            # Δημιουργία νέας γραμμής
             new_row = pd.DataFrame([{
                 "Ημερομηνία": str(date),
                 "Περιγραφή": description,
@@ -34,12 +37,11 @@ with st.sidebar:
                 "Πληρωμή από": payer
             }])
             
-            # Προσθήκη στο υπάρχον DataFrame
             updated_df = pd.concat([df, new_row], ignore_index=True)
             
             # Ενημέρωση του Google Sheet
-            conn.update(spreadsheet=st.secrets["connections"]["gsheets"]["spreadsheet"], data=updated_df)
-            conn.update(spreadsheet="https://docs.google.com/spreadsheets/d/1GTsVsYbY2e5Gw1WN7OpBviq2599SeNI0N3OfFYE6lmo/edit?gid=0", data=updated_df)
+            conn.update(spreadsheet=SHEET_URL, data=updated_df)
+            st.success("Η καταχώρηση αποθηκεύτηκε!")
             st.rerun()
         else:
             st.error("Παρακαλώ συμπληρώστε Περιγραφή και Ποσό.")
