@@ -1,49 +1,54 @@
 import streamlit as st
+from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
-# Τίτλος Εφαρμογής
-st.set_page_config(page_title="Renovation Tracker", layout="wide")
+st.set_page_config(page_title="Ανακαίνιση", layout="wide")
 st.title("🏡 Καταγραφή Εξόδων Ανακαίνισης")
 
-# Αρχικοποίηση δεδομένων (Session State)
-if 'expenses' not in st.session_state:
-    st.session_state.expenses = pd.DataFrame(columns=[
-        "Ημερομηνία", "Περιγραφή", "Κατηγορία", "Ποσό (€)", "Πληρωμή από"
-    ])
+# Σύνδεση με το Google Sheet σου
+# Επικόλλησε το URL σου ανάμεσα στα εισαγωγικά παρακάτω:
+url = "https://docs.google.com/spreadsheets/d/1GTsVsYbY2e5GW1WN70pBviq2599SenI0N3OFfYE6Imo/edit?gid=0#gid=0" 
 
-# --- ΦΟΡΜΑ ΚΑΤΑΧΩΡΗΣΗΣ ---
+conn = st.connection("gsheets", type=GSheetsConnection)
+
+# Διάβασμα δεδομένων
+try:
+    data = conn.read(spreadsheet=url)
+    data = data.dropna(how="all")
+except:
+    data = pd.DataFrame(columns=["Ημερομηνία", "Περιγραφή", "Κατηγορία", "Ποσό (€)", "Πληρωμή από"])
+
 with st.sidebar:
     st.header("➕ Νέο Έξοδο")
     date = st.date_input("Ημερομηνία")
     desc = st.text_input("Περιγραφή")
     cat = st.selectbox("Κατηγορία", ["Οικοδομικά", "Ηλεκτρολογικά", "Υδραυλικά", "Δάπεδα", "Ξυλουργικά", "Λοιπά"])
-    amount = st.number_input("Ποσό (€)", min_value=0.0, step=10.0)
+    amount = st.number_input("Ποσό (€)", min_value=0.0, step=1.0)
     payer = st.radio("Πληρωμή από", ["Εγώ", "Πατέρας"])
     
     if st.button("Καταχώρηση"):
-        new_row = pd.DataFrame([[date, desc, cat, amount, payer]], 
-                               columns=st.session_state.expenses.columns)
-        st.session_state.expenses = pd.concat([st.session_state.expenses, new_row], ignore_index=True)
-        st.success("Το έξοδο καταγράφηκε!")
+        new_row = pd.DataFrame([{
+            "Ημερομηνία": str(date),
+            "Περιγραφή": desc,
+            "Κατηγορία": cat,
+            "Ποσό (€)": amount,
+            "Πληρωμή από": payer
+        }])
+        updated_df = pd.concat([data, new_row], ignore_index=True)
+        conn.update(spreadsheet=url, data=updated_df)
+        st.success("Αποθηκεύτηκε μόνιμα!")
+        st.rerun()
 
-# --- DASHBOARD & ΣΤΑΤΙΣΤΙΚΑ ---
-col1, col2, col3 = st.columns(3)
-
-total_spent = st.session_state.expenses["Ποσό (€)"].sum()
-father_spent = st.session_state.expenses[st.session_state.expenses["Πληρωμή από"] == "Πατέρας"]["Ποσό (€)"].sum()
-my_spent = total_spent - father_spent
-
-col1.metric("Συνολικά Έξοδα", f"{total_spent:.2f} €")
-col2.metric("Πληρωμές Πατέρα", f"{father_spent:.2f} €")
-col3.metric("Δικές μου Πληρωμές", f"{my_spent:.2f} €")
-
-st.divider()
-
-# --- ΠΙΝΑΚΑΣ ΔΕΔΟΜΕΝΩΝ ---
-st.subheader("📋 Λίστα Εξόδων")
-st.dataframe(st.session_state.expenses, use_container_width=True)
-
-# Δυνατότητα εξαγωγής σε Excel
-if not st.session_state.expenses.empty:
-    csv = st.session_state.expenses.to_csv(index=False).encode('utf-8-sig')
-    st.download_button("📥 Λήψη σε Excel (CSV)", csv, "renovation_costs.csv", "text/csv")
+# Εμφάνιση συνόλων
+if not data.empty:
+    total = data["Ποσό (€)"].sum()
+    father = data[data["Πληρωμή από"] == "Πατέρας"]["Ποσό (€)"].sum()
+    
+    c1, c2 = st.columns(2)
+    c1.metric("Συνολικό Κόστος", f"{total:.2f} €")
+    c2.metric("Πληρωμές Πατέρα", f"{father:.2f} €")
+    
+    st.markdown("---")
+    st.dataframe(data, use_container_width=True)
+else:
+    st.info("Δεν υπάρχουν ακόμα καταχωρήσεις.")
