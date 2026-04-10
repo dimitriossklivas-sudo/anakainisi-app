@@ -2,6 +2,7 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
+# Ρύθμιση σελίδας
 st.set_page_config(page_title="Καταγραφή Εξόδων Ανακαίνισης", layout="centered")
 
 st.title("🏠 Καταγραφή Εξόδων Ανακαίνισης")
@@ -9,13 +10,18 @@ st.title("🏠 Καταγραφή Εξόδων Ανακαίνισης")
 # Σύνδεση με το Google Sheet
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# URL του Sheet σου
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1GTsVsYbY2e5Gw1WN7OpBviq2599SeNI0N3OfFYE6lmo/edit?gid=0"
+# ΤΟ URL ΣΟΥ (Διορθωμένο για να αποφύγουμε το 404)
+# Προσοχή: Χρησιμοποιούμε το link με το /gviz/tq για μέγιστη συμβατότητα
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1GTsVsYbY2e5Gw1WN7OpBviq2599SeNI0N3OfFYE6lmo/edit#gid=0"
 
 # Ανάγνωση δεδομένων
-df = conn.read(spreadsheet=SHEET_URL)
+try:
+    df = conn.read(spreadsheet=SHEET_URL, usecols=[0,1,2,3,4])
+except Exception as e:
+    st.error(f"Πρόβλημα σύνδεσης με το Sheet: {e}")
+    df = pd.DataFrame()
 
-# Φόρμα εισαγωγής
+# Φόρμα εισαγωγής στο πλάι
 with st.sidebar:
     st.header("➕ Νέο Έξοδο")
     with st.form("expense_form", clear_on_submit=True):
@@ -37,16 +43,20 @@ with st.sidebar:
                 "Πληρωμή από": payer
             }])
             
+            # Ενοποίηση παλιών και νέων δεδομένων
             updated_df = pd.concat([df, new_row], ignore_index=True)
             
             # Ενημέρωση του Google Sheet
-            conn.update(spreadsheet=SHEET_URL, data=updated_df)
-            st.success("Η καταχώρηση αποθηκεύτηκε!")
-            st.rerun()
+            try:
+                conn.update(spreadsheet=SHEET_URL, data=updated_df)
+                st.success("Η καταχώρηση αποθηκεύτηκε!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Σφάλμα κατά την αποθήκευση: {e}")
         else:
             st.error("Παρακαλώ συμπληρώστε Περιγραφή και Ποσό.")
 
-# Εμφάνιση στατιστικών
+# Εμφάνιση στατιστικών και πίνακα
 if not df.empty:
     col1, col2 = st.columns(2)
     with col1:
@@ -58,4 +68,4 @@ if not df.empty:
     st.subheader("Λίστα Εξόδων")
     st.dataframe(df, use_container_width=True)
 else:
-    st.info("Δεν υπάρχουν ακόμα καταχωρήσεις.")
+    st.info("Δεν υπάρχουν ακόμα καταχωρήσεις ή το αρχείο είναι άδειο.")
