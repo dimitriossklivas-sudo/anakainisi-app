@@ -9,8 +9,7 @@ st.title("🏠 Καταγραφή Εξόδων Ανακαίνισης")
 # Σύνδεση με το Google Sheet
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Ανάγνωση δεδομένων
-df = conn.read()
+df = conn.read(spreadsheet="https://docs.google.com/spreadsheets/d/1GTsVsYbY2e5Gw1WN7OpBviq2599SeNI0N3OfFYE6lmo/edit?gid=0")df = conn.read()
 
 # Φόρμα εισαγωγής
 with st.sidebar:
@@ -40,7 +39,7 @@ with st.sidebar:
             
             # Ενημέρωση του Google Sheet
             conn.update(spreadsheet=st.secrets["connections"]["gsheets"]["spreadsheet"], data=updated_df)
-            st.success("Η καταχώρηση αποθηκεύτηκε!")
+            conn.update(spreadsheet="https://docs.google.com/spreadsheets/d/1GTsVsYbY2e5Gw1WN7OpBviq2599SeNI0N3OfFYE6lmo/edit?gid=0", data=updated_df)
             st.rerun()
         else:
             st.error("Παρακαλώ συμπληρώστε Περιγραφή και Ποσό.")
