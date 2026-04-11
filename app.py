@@ -4,87 +4,103 @@ import os
 from datetime import datetime
 import plotly.express as px
 
-# Ρυθμίσεις σελίδας με το όνομά σας
-st.set_page_config(page_title="Renovation Pro | Σκλίβας Δημήτριος", layout="wide", page_icon="🏗️")
+# Ρυθμίσεις σελίδας
+st.set_page_config(page_title="Σκλίβας Δημήτριος | v3.0", layout="wide", page_icon="🏠")
 
-# Φάκελοι αρχείων
-for folder in ["receipts", "progress_photos"]:
+# --- HEADER & LOGO ---
+col_logo1, col_logo2, col_logo3 = st.columns([1, 2, 1])
+with col_logo2:
+    # Έλεγχος αν υπάρχει το αρχείο εικόνας
+    if os.path.exists("logo.png"):
+        st.image("logo.png", use_container_width=True)
+    else:
+        st.markdown(f"<h1 style='text-align: center; color: #D4AF37;'>ΣΚΛΙΒΑΣ ΔΗΜΗΤΡΙΟΣ</h1>", unsafe_allow_html=True)
+    
+    st.markdown("<p style='text-align: center; font-size: 20px; color: #6B7280; margin-top: -20px;'>Management Suite v3.0</p>", unsafe_allow_html=True)
+
+# Δημιουργία φακέλων αν δεν υπάρχουν
+for folder in ["receipts", "documents"]:
     if not os.path.exists(folder):
         os.makedirs(folder)
 
-EXPENSES_FILE = "expenses_pro_v3.csv"
-CONTACTS_FILE = "contacts.csv"
+EXPENSES_FILE = "expenses_v3.csv"
+CONTACTS_FILE = "contacts_v3.csv"
 
-# Φόρτωση Δεδομένων
+# Συναρτήσεις Δεδομένων
 def load_data(file, columns):
     if os.path.exists(file):
         return pd.read_csv(file)
     return pd.DataFrame(columns=columns)
 
 df_expenses = load_data(EXPENSES_FILE, ["ID", "Ημερομηνία", "Περιγραφή", "Κατηγορία", "Ποσό (€)", "Πληρωμή από", "Αρχείο"])
-df_contacts = load_data(CONTACTS_FILE, ["Όνομα", "Ειδικότητα", "Τηλέφωνο", "Σημειώσεις"])
 
-# --- UI BRANDING ---
-st.markdown(f"<h1 style='text-align: center; color: #1E3A8A;'>ΣΚΛΙΒΑΣ ΔΗΜΗΤΡΙΟΣ</h1>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align: center; color: #6B7280;'>Ολοκληρωμένη Διαχείριση Ανακαίνισης</h3>", unsafe_allow_html=True)
+# --- ΚΥΡΙΟ ΜΕΝΟΥ ---
+tab_dash, tab_work, tab_materials, tab_docs = st.tabs([
+    "📊 Κέντρο Ελέγχου", 
+    "👷 Διαχείριση Συνεργείων", 
+    "📦 Υλικά & Πρόοδος", 
+    "📄 Αρχείο & Τιμολόγια"
+])
 
-# --- TABS ΓΙΑ ΟΡΓΑΝΩΣΗ (Βάσει του Word) ---
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard & Έξοδα", "👷 Συνεργεία", "📦 Υλικά & Progress", "📄 Έγγραφα"])
+# --- TAB: ΚΕΝΤΡΟ ΕΛΕΓΧΟΥ (DASHBOARD) ---
+with tab_dash:
+    st.sidebar.header("📥 Νέα Εγγραφή v3.0")
+    with st.sidebar.form("main_form"):
+        date = st.date_input("Ημερομηνία")
+        desc = st.text_input("Περιγραφή Εργασίας / Προμηθευτής")
+        cat = st.selectbox("Κατηγορία", ["Οικοδομικά", "Υδραυλικά", "Ηλεκτρολογικά", "Μπάνιο/Πλακάκια", "Κουζίνα", "Αλουμίνια", "Βάψιμο", "Άλλο"])
+        amount = st.number_input("Ποσό (€)", min_value=0.0)
+        payer = st.radio("Πληρωμή από", ["Εγώ", "Πατέρας"])
+        doc = st.file_uploader("Ανέβασμα Απόδειξης/Σχεδίου", type=['jpg', 'png', 'pdf'])
+        submit = st.form_submit_button("✅ Καταχώρηση")
 
-# --- TAB 1: DASHBOARD & ΕΞΟΔΑ ---
-with tab1:
-    with st.sidebar:
-        st.header("➕ Νέα Καταχώρηση")
-        with st.form("expense_form"):
-            date = st.date_input("Ημερομηνία")
-            desc = st.text_input("Περιγραφή (π.χ. Τσιμέντα)")
-            cat = st.selectbox("Κατηγορία", ["Οικοδομικά", "Υδραυλικά", "Ηλεκτρολογικά", "Μπάνιο", "Κουζίνα", "Βάψιμο", "Άλλο"])
-            amount = st.number_input("Ποσό (€)", min_value=0.0)
-            payer = st.radio("Πληρωμή από", ["Εγώ", "Πατέρας"])
-            file = st.file_uploader("Τιμολόγιο/Απόδειξη", type=['jpg', 'pdf'])
-            if st.form_submit_button("Αποθήκευση"):
-                # Αποθήκευση (όπως πριν)
-                st.success("Καταχωρήθηκε!")
+    if submit and desc and amount > 0:
+        file_path = "Δεν υπάρχει"
+        if doc:
+            file_path = os.path.join("receipts", f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{doc.name}")
+            with open(file_path, "wb") as f:
+                f.write(doc.getbuffer())
+        
+        new_row = pd.DataFrame([{
+            "ID": datetime.now().strftime("%f"),
+            "Ημερομηνία": str(date),
+            "Περιγραφή": desc,
+            "Κατηγορία": cat,
+            "Ποσό (€)": amount,
+            "Πληρωμή από": payer,
+            "Αρχείο": file_path
+        }])
+        df_expenses = pd.concat([df_expenses, new_row], ignore_index=True)
+        df_expenses.to_csv(EXPENSES_FILE, index=False)
+        st.sidebar.success("Η εγγραφή αποθηκεύτηκε!")
+        st.rerun()
 
-    # Στατιστικά (Dashboard)
+    # Metrics & Charts
     if not df_expenses.empty:
-        total_spent = df_expenses["Ποσό (€)"].sum()
-        st.metric("Συνολικό Κόστος Έργου", f"{total_spent:,.2f} €")
-        fig = px.pie(df_expenses, values='Ποσό (€)', names='Κατηγορία', title="Ανάλυση Κόστους ανά Εργασία")
-        st.plotly_chart(fig)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Συνολικά Έξοδα", f"{df_expenses['Ποσό (€)'].sum():,.2f} €")
+        c2.metric("Συμμετοχή Δημήτρη", f"{df_expenses[df_expenses['Πληρωμή από']=='Εγώ']['Ποσό (€)'].sum():,.2f} €")
+        c3.metric("Συμμετοχή Πατέρα", f"{df_expenses[df_expenses['Πληρωμή από']=='Πατέρας']['Ποσό (€)'].sum():,.2f} €")
+        
+        st.divider()
+        col_chart1, col_chart2 = st.columns(2)
+        with col_chart1:
+            fig1 = px.pie(df_expenses, values='Ποσό (€)', names='Κατηγορία', hole=0.4, title="Κόστος ανά Εργασία")
+            st.plotly_chart(fig1, use_container_width=True)
+        with col_chart2:
+            fig2 = px.bar(df_expenses.groupby("Πληρωμή από")["Ποσό (€)"].sum().reset_index(), x='Πληρωμή από', y='Ποσό (€)', title="Σύγκριση Πληρωμών")
+            st.plotly_chart(fig2, use_container_width=True)
 
-# --- TAB 2: ΔΙΑΧΕΙΡΙΣΗ ΣΥΝΕΡΓΕΙΩΝ (Source 7-12) ---
-with tab2:
-    st.subheader("👷 Λίστα Επαγγελματιών & Συνεργατών")
-    with st.expander("Προσθήκη Νέου Συνεργάτη"):
-        with st.form("contact_form"):
-            c_name = st.text_input("Όνομα/Εταιρεία")
-            c_spec = st.text_input("Ειδικότητα (π.χ. Υδραυλικός)")
-            c_phone = st.text_input("Τηλέφωνο Επικοινωνίας")
-            if st.form_submit_button("Προσθήκη"):
-                new_c = pd.DataFrame([{"Όνομα": c_name, "Ειδικότητα": c_spec, "Τηλέφωνο": c_phone}])
-                df_contacts = pd.concat([df_contacts, new_c], ignore_index=True)
-                df_contacts.to_csv(CONTACTS_FILE, index=False)
-                st.rerun()
-    st.table(df_contacts)
+# --- TAB: ΣΥΝΕΡΓΕΙΑ & ΥΛΙΚΑ (Βάσει του Word) ---
+with tab_work:
+    st.subheader("👷 Κατάλογος Επαγγελματιών")
+    st.info("Εδώ μπορείτε να καταγράφετε τη λίστα συνεργατών και στοιχεία επικοινωνίας.")
 
-# --- TAB 3: ΥΛΙΚΑ & PROGRESS (Source 13-22) ---
-with tab3:
-    col_p1, col_p2 = st.columns(2)
-    with col_p1:
-        st.subheader("✅ Checklist Εργασιών")
-        st.checkbox("Κατεδαφίσεις")
-        st.checkbox("Υδραυλική εγκατάσταση")
-        st.checkbox("Ηλεκτρολογική εγκατάσταση")
-        st.checkbox("Σοβατίσματα / Βάψιμο")
-    
-    with col_p2:
-        st.subheader("📦 Παραγγελίες Υλικών")
-        st.info("Εδώ μπορείτε να παρακολουθείτε τι έχει παραληφθεί (π.χ. Πλακάκια, Είδη Υγιεινής)")
+with tab_materials:
+    st.subheader("📦 Διαχείριση Προμηθειών")
+    st.write("Παρακολούθηση αποθεμάτων και checklists εργασιών.")
 
-# --- TAB 4: ΕΓΓΡΑΦΑ & ΣΗΜΕΙΩΣΕΙΣ (Source 28-32) ---
-with tab4:
-    st.subheader("📄 Ψηφιακό Αρχείο")
-    st.write("Εδώ αποθηκεύονται αυτόματα όλες οι αποδείξεις και τα τιμολόγια που ανεβάζετε.")
+with tab_docs:
+    st.subheader("📑 Ψηφιακό Αρχείο Εγγράφων")
     if not df_expenses.empty:
-        st.dataframe(df_expenses[["Ημερομηνία", "Περιγραφή", "Ποσό (€)", "Αρχείο"]])
+        st.dataframe(df_expenses.sort_values("Ημερομηνία", ascending=False), use_container_width=True)
