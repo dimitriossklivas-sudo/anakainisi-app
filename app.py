@@ -1,71 +1,102 @@
 import streamlit as st
 import pandas as pd
 import os
+from datetime import datetime
 
-st.set_page_config(page_title="Ανακαίνιση - Στατιστικά", layout="wide") # wide για καλύτερη προβολή των stats
-st.title("🏠 Διαχείριση & Στατιστικά Εξόδων")
+# Ρυθμίσεις σελίδας
+st.set_page_config(page_title="Pro Renovation Manager", layout="wide", page_icon="🏗️")
 
-FILE_NAME = "expenses.csv"
+# Δημιουργία φακέλων αν δεν υπάρχουν
+if not os.path.exists("receipts"):
+    os.makedirs("receipts")
+
+FILE_NAME = "expenses_pro.csv"
 
 # Φόρτωση δεδομένων
 if os.path.exists(FILE_NAME):
     df = pd.read_csv(FILE_NAME)
-    df["Ποσό (€)"] = pd.to_numeric(df["Ποσό (€)"], errors='coerce')
 else:
-    df = pd.DataFrame(columns=["Ημερομηνία", "Περιγραφή", "Κατηγορία", "Ποσό (€)", "Πληρωμή από"])
+    df = pd.DataFrame(columns=["ID", "Ημερομηνία", "Περιγραφή", "Κατηγορία", "Ποσό (€)", "Πληρωμή από", "Αρχείο"])
 
-# --- SIDEBAR: ΚΑΤΑΧΩΡΗΣΗ ---
-with st.sidebar:
-    st.header("➕ Νέα Καταχώρηση")
-    with st.form("expense_form", clear_on_submit=True):
-        date = st.date_input("Ημερομηνία")
-        description = st.text_input("Περιγραφή")
-        category = st.selectbox("Κατηγορία", ["Υδραυλικά", "Ηλεκτρολογικά", "Οικοδομικά", "Έπιπλα", "Αλουμίνια", "Άλλο"])
-        amount = st.number_input("Ποσό (€)", min_value=0.0, format="%.2f")
-        payer = st.radio("Πληρωμή από", ["Εγώ", "Πατέρας"])
-        submitted = st.form_submit_button("Αποθήκευση")
+# --- SIDEBAR: ΕΙΣΑΓΩΓΗ ---
+st.sidebar.header("🏗️ Διαχείριση Έργου")
+with st.sidebar.form("pro_form", clear_on_submit=True):
+    date = st.date_input("Ημερομηνία", datetime.now())
+    desc = st.text_input("Τίτλος Εξόδου / Προμηθευτής")
+    cat = st.selectbox("Κατηγορία", ["Οικοδομικά", "Υδραυλικά", "Ηλεκτρολογικά", "Μπάνιο/Πλακάκια", "Κουζίνα", "Αλουμίνια", "Βάψιμο", "Φωτισμός", "Έπιπλα", "Άλλο"])
+    amount = st.number_input("Ποσό (€)", min_value=0.0, step=10.0)
+    payer = st.radio("Ποιος πλήρωσε;", ["Εγώ", "Πατέρας"])
+    uploaded_file = st.file_uploader("📷 Ανέβασμα Απόδειξης (Image/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
+    
+    submit = st.form_submit_button("✅ Οριστική Καταχώρηση")
 
-    if submitted and description and amount > 0:
-        new_row = pd.DataFrame([{"Ημερομηνία": str(date), "Περιγραφή": description, "Κατηγορία": category, "Ποσό (€)": amount, "Πληρωμή από": payer}])
-        df = pd.concat([df, new_row], ignore_index=True)
-        df.to_csv(FILE_NAME, index=False)
-        st.success("Η καταχώρηση έγινε!")
-        st.rerun()
+if submit and desc and amount > 0:
+    file_path = "Δεν υπάρχει"
+    if uploaded_file is not None:
+        file_path = os.path.join("receipts", f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uploaded_file.name}")
+        with open(file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+    
+    new_data = pd.DataFrame([{
+        "ID": datetime.now().strftime("%H%M%S"),
+        "Ημερομηνία": str(date),
+        "Περιγραφή": desc,
+        "Κατηγορία": cat,
+        "Ποσό (€)": amount,
+        "Πληρωμή από": payer,
+        "Αρχείο": file_path
+    }])
+    df = pd.concat([df, new_data], ignore_index=True)
+    df.to_csv(FILE_NAME, index=False)
+    st.sidebar.success("Η καταχώρηση ολοκληρώθηκε!")
+    st.rerun()
 
-# --- ΚΥΡΙΟ ΜΕΡΟΣ: ΣΤΑΤΙΣΤΙΚΑ ---
+# --- ΚΥΡΙΟ ΠΑΝΕΛ ---
+st.title("🏗️ Pro Renovation Manager")
+
 if not df.empty:
-    # 1. Γενικά Σύνολα σε στήλες
-    col1, col2, col3 = st.columns(3)
-    total_all = df["Ποσό (€)"].sum()
-    total_me = df[df["Πληρωμή από"] == "Εγώ"]["Ποσό (€)"].sum()
-    total_dad = df[df["Πληρωμή από"] == "Πατέρας"]["Ποσό (€)"].sum()
-
-    col1.metric("Γενικό Σύνολο", f"{total_all:.2f} €")
-    col2.metric("Εγώ", f"{total_me:.2f} €", delta_color="normal")
-    col3.metric("Πατέρας", f"{total_dad:.2f} €", delta_color="normal")
+    # KPI Metrics
+    c1, c2, c3, c4 = st.columns(4)
+    total = df["Ποσό (€)"].sum()
+    c1.metric("Συνολικό Κόστος", f"{total:,.2f} €")
+    c2.metric("Δικά σου", f"{df[df['Πληρωμή από']=='Εγώ']['Ποσό (€)'].sum():,.2f} €")
+    c3.metric("Πατέρα", f"{df[df['Πληρωμή από']=='Πατέρας']['Ποσό (€)'].sum():,.2f} €")
+    c4.metric("Εγγραφές", len(df))
 
     st.divider()
 
-    # 2. Στατιστικά ανά Κατηγορία
-    st.subheader("📊 Ανάλυση ανά Κατηγορία")
-    cat_totals = df.groupby("Κατηγορία")["Ποσό (€)"].sum().sort_values(ascending=False)
-    
-    # Εμφάνιση γραφήματος
-    st.bar_chart(cat_totals)
+    # Φίλτρα
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
+        search = st.text_input("🔍 Αναζήτηση (π.χ. Τσιμέντα)")
+    with col_f2:
+        filter_cat = st.multiselect("📂 Φιλτράρισμα Κατηγορίας", options=df["Κατηγορία"].unique())
 
-    # Πίνακας με τα ποσά ανά κατηγορία
-    with st.expander("Δείτε τον πίνακα ανά κατηγορία"):
-        st.table(cat_totals.apply(lambda x: f"{x:.2f} €"))
+    # Εφαρμογή φίλτρων
+    view_df = df.copy()
+    if search:
+        view_df = view_df[view_df['Περιγραφή'].str.contains(search, case=False)]
+    if filter_cat:
+        view_df = view_df[view_df['Κατηγορία'].isin(filter_cat)]
 
+    # Πίνακας Δεδομένων
+    st.subheader("📑 Αναλυτική Κατάσταση")
+    st.dataframe(view_df.sort_values("Ημερομηνία", ascending=False), use_container_width=True)
+
+    # Προβολή Αποδείξεων
     st.divider()
-
-    # 3. Αναλυτική Λίστα
-    st.subheader("📋 Όλες οι Καταχωρήσεις")
-    st.dataframe(df.sort_values(by="Ημερομηνία", ascending=False), use_container_width=True)
-    
-    # Κουμπί εξαγωγής
-    csv = df.to_csv(index=False).encode('utf-8')
-    st.download_button("📥 Εξαγωγή σε CSV για Excel", data=csv, file_name="anakaιnisi_full_report.csv", mime="text/csv")
+    st.subheader("🖼️ Αρχείο Αποδείξεων")
+    files_with_docs = df[df["Αρχείο"] != "Δεν υπάρχει"]
+    if not files_with_docs.empty:
+        selected_receipt = st.selectbox("Επιλέξτε έξοδο για προβολή απόδειξης:", files_with_docs["Περιγραφή"] + " (" + files_with_docs["Ημερομηνία"] + ")")
+        actual_path = files_with_docs[files_with_docs["Περιγραφή"] + " (" + files_with_docs["Ημερομηνία"] + ")" == selected_receipt]["Αρχείο"].values[0]
+        
+        if actual_path.endswith('.pdf'):
+            st.info(f"Το αρχείο είναι PDF. Μπορείτε να το βρείτε στον φάκελο receipts.")
+        else:
+            st.image(actual_path, caption=selected_receipt, use_container_width=True)
+    else:
+        st.write("Δεν έχουν ανέβει ακόμα αποδείξεις.")
 
 else:
-    st.info("Περιμένω την πρώτη σας καταχώρηση για να εμφανίσω στατιστικά!")
+    st.info("Ξεκινήστε την πρώτη σας καταχώρηση από το μενού αριστερά!")
