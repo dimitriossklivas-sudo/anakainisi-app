@@ -2,33 +2,62 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime
+import plotly.express as px # Για πιο επαγγελματικά γραφήματα
 
 # Ρυθμίσεις σελίδας
-st.set_page_config(page_title="Pro Renovation Manager", layout="wide", page_icon="🏗️")
+st.set_page_config(page_title="Renovation Pro | Σκλίβας Δημήτριος", layout="wide", page_icon="🏗️")
 
-# Δημιουργία φακέλων αν δεν υπάρχουν
+# Custom CSS για το Logo και την αισθητική
+st.markdown("""
+    <style>
+    .main-title {
+        font-size: 40px;
+        font-weight: bold;
+        color: #1E3A8A;
+        text-align: center;
+        margin-bottom: 0px;
+    }
+    .sub-title {
+        font-size: 18px;
+        text-align: center;
+        color: #6B7280;
+        margin-bottom: 30px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Logo / Ονοματεπώνυμο
+st.markdown('<p class="main-title">ΣΚΛΙΒΑΣ ΔΗΜΗΤΡΙΟΣ</p>', unsafe_allow_html=True)
+st.markdown('<p class="sub-title">Project: Διαχείριση Ανακαίνισης v2.0</p>', unsafe_allow_html=True)
+
+# Δημιουργία φακέλων
 if not os.path.exists("receipts"):
     os.makedirs("receipts")
 
-FILE_NAME = "expenses_pro.csv"
+FILE_NAME = "expenses_pro_v2.csv"
 
 # Φόρτωση δεδομένων
 if os.path.exists(FILE_NAME):
     df = pd.read_csv(FILE_NAME)
+    df["Ποσό (€)"] = pd.to_numeric(df["Ποσό (€)"], errors='coerce')
 else:
     df = pd.DataFrame(columns=["ID", "Ημερομηνία", "Περιγραφή", "Κατηγορία", "Ποσό (€)", "Πληρωμή από", "Αρχείο"])
 
-# --- SIDEBAR: ΕΙΣΑΓΩΓΗ ---
-st.sidebar.header("🏗️ Διαχείριση Έργου")
-with st.sidebar.form("pro_form", clear_on_submit=True):
-    date = st.date_input("Ημερομηνία", datetime.now())
-    desc = st.text_input("Τίτλος Εξόδου / Προμηθευτής")
-    cat = st.selectbox("Κατηγορία", ["Οικοδομικά", "Υδραυλικά", "Ηλεκτρολογικά", "Μπάνιο/Πλακάκια", "Κουζίνα", "Αλουμίνια", "Βάψιμο", "Φωτισμός", "Έπιπλα", "Άλλο"])
-    amount = st.number_input("Ποσό (€)", min_value=0.0, step=10.0)
-    payer = st.radio("Ποιος πλήρωσε;", ["Εγώ", "Πατέρας"])
-    uploaded_file = st.file_uploader("📷 Ανέβασμα Απόδειξης (Image/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
+# --- SIDEBAR: ΡΥΘΜΙΣΕΙΣ & ΕΙΣΑΓΩΓΗ ---
+with st.sidebar:
+    st.header("⚙️ Ρυθμίσεις Έργου")
+    budget_limit = st.number_input("Συνολικό Όριο Χρημάτων (€)", min_value=1000, value=20000, step=500)
     
-    submit = st.form_submit_button("✅ Οριστική Καταχώρηση")
+    st.divider()
+    st.header("➕ Νέα Καταχώρηση")
+    with st.form("pro_form", clear_on_submit=True):
+        date = st.date_input("Ημερομηνία", datetime.now())
+        desc = st.text_input("Περιγραφή / Προμηθευτής")
+        cat = st.selectbox("Κατηγορία", ["Οικοδομικά", "Υδραυλικά", "Ηλεκτρολογικά", "Μπάνιο/Πλακάκια", "Κουζίνα", "Αλουμίνια", "Βάψιμο", "Φωτισμός", "Έπιπλα", "Άλλο"])
+        amount = st.number_input("Ποσό (€)", min_value=0.0, step=10.0)
+        payer = st.radio("Ποιος πλήρωσε;", ["Εγώ", "Πατέρας"])
+        uploaded_file = st.file_uploader("📷 Απόδειξη", type=['png', 'jpg', 'jpeg', 'pdf'])
+        submit = st.form_submit_button("✅ Αποθήκευση")
 
 if submit and desc and amount > 0:
     file_path = "Δεν υπάρχει"
@@ -48,55 +77,68 @@ if submit and desc and amount > 0:
     }])
     df = pd.concat([df, new_data], ignore_index=True)
     df.to_csv(FILE_NAME, index=False)
-    st.sidebar.success("Η καταχώρηση ολοκληρώθηκε!")
     st.rerun()
 
-# --- ΚΥΡΙΟ ΠΑΝΕΛ ---
-st.title("🏗️ Pro Renovation Manager")
-
+# --- ΚΕΝΤΡΟ ΕΛΕΓΧΟΥ (DASHBOARD) ---
 if not df.empty:
-    # KPI Metrics
-    c1, c2, c3, c4 = st.columns(4)
-    total = df["Ποσό (€)"].sum()
-    c1.metric("Συνολικό Κόστος", f"{total:,.2f} €")
-    c2.metric("Δικά σου", f"{df[df['Πληρωμή από']=='Εγώ']['Ποσό (€)'].sum():,.2f} €")
-    c3.metric("Πατέρα", f"{df[df['Πληρωμή από']=='Πατέρας']['Ποσό (€)'].sum():,.2f} €")
-    c4.metric("Εγγραφές", len(df))
+    total_spent = df["Ποσό (€)"].sum()
+    remaining = budget_limit - total_spent
+    progress = min(total_spent / budget_limit, 1.0)
 
-    st.divider()
-
-    # Φίλτρα
-    col_f1, col_f2 = st.columns(2)
-    with col_f1:
-        search = st.text_input("🔍 Αναζήτηση (π.χ. Τσιμέντα)")
-    with col_f2:
-        filter_cat = st.multiselect("📂 Φιλτράρισμα Κατηγορίας", options=df["Κατηγορία"].unique())
-
-    # Εφαρμογή φίλτρων
-    view_df = df.copy()
-    if search:
-        view_df = view_df[view_df['Περιγραφή'].str.contains(search, case=False)]
-    if filter_cat:
-        view_df = view_df[view_df['Κατηγορία'].isin(filter_cat)]
-
-    # Πίνακας Δεδομένων
-    st.subheader("📑 Αναλυτική Κατάσταση")
-    st.dataframe(view_df.sort_values("Ημερομηνία", ascending=False), use_container_width=True)
-
-    # Προβολή Αποδείξεων
-    st.divider()
-    st.subheader("🖼️ Αρχείο Αποδείξεων")
-    files_with_docs = df[df["Αρχείο"] != "Δεν υπάρχει"]
-    if not files_with_docs.empty:
-        selected_receipt = st.selectbox("Επιλέξτε έξοδο για προβολή απόδειξης:", files_with_docs["Περιγραφή"] + " (" + files_with_docs["Ημερομηνία"] + ")")
-        actual_path = files_with_docs[files_with_docs["Περιγραφή"] + " (" + files_with_docs["Ημερομηνία"] + ")" == selected_receipt]["Αρχείο"].values[0]
-        
-        if actual_path.endswith('.pdf'):
-            st.info(f"Το αρχείο είναι PDF. Μπορείτε να το βρείτε στον φάκελο receipts.")
-        else:
-            st.image(actual_path, caption=selected_receipt, use_container_width=True)
+    # 1. Budget Progress Bar
+    st.subheader(f"📊 Πρόοδος Προϋπολογισμού (Όριο: {budget_limit:,.0f}€)")
+    col_b1, col_b2 = st.columns([4, 1])
+    with col_b1:
+        st.progress(progress)
+    with col_b2:
+        st.write(f"**{progress*100:.1f}%**")
+    
+    if total_spent > budget_limit:
+        st.error(f"⚠️ Έχετε υπερβεί το όριο κατά {total_spent - budget_limit:,.2f} €!")
     else:
-        st.write("Δεν έχουν ανέβει ακόμα αποδείξεις.")
+        st.info(f"💡 Υπόλοιπο μέχρι το όριο: {remaining:,.2f} €")
 
+    st.divider()
+
+    # 2. Σύγκριση Εγώ vs Πατέρας (Σχεδιαγράμματα)
+    st.subheader("⚖️ Κέντρο Ελέγχου Στατιστικών")
+    col_stat1, col_stat2 = st.columns(2)
+
+    with col_stat1:
+        st.markdown("### Ποιος έχει πληρώσει τι")
+        fig_payer = px.pie(df, values='Ποσό (€)', names='Πληρωμή από', hole=0.4,
+                           color_discrete_sequence=['#1E3A8A', '#3B82F6'])
+        st.plotly_chart(fig_payer, use_container_width=True)
+
+    with col_stat2:
+        st.markdown("### Έξοδα ανά Κατηγορία")
+        fig_cat = px.bar(df.groupby("Κατηγορία")["Ποσό (€)"].sum().reset_index(), 
+                         x='Κατηγορία', y='Ποσό (€)', color='Κατηγορία')
+        st.plotly_chart(fig_cat, use_container_width=True)
+
+    st.divider()
+
+    # 3. Φίλτρα & Πίνακας
+    st.subheader("📑 Αναλυτικό Αρχείο Εργασιών")
+    search_query = st.text_input("🔍 Αναζήτηση στις περιγραφές...")
+    
+    filtered_df = df.copy()
+    if search_query:
+        filtered_df = filtered_df[filtered_df['Περιγραφή'].str.contains(search_query, case=False)]
+    
+    st.dataframe(filtered_df.sort_values("Ημερομηνία", ascending=False), use_container_width=True)
+
+    # 4. Προβολή Αποδείξεων
+    st.divider()
+    st.subheader("📸 Ψηφιακό Αρχείο Αποδείξεων")
+    has_files = df[df["Αρχείο"] != "Δεν υπάρχει"]
+    if not has_files.empty:
+        selected = st.selectbox("Επιλογή εξόδου για εμφάνιση εγγράφου:", has_files["Περιγραφή"] + " - " + has_files["Ποσό (€)"].astype(str) + "€")
+        img_path = has_files[has_files["Περιγραφή"] + " - " + has_files["Ποσό (€)"].astype(str) + "€" == selected]["Αρχείο"].values[0]
+        if img_path.endswith('.pdf'):
+            st.warning("Το αρχείο είναι PDF και δεν μπορεί να προβληθεί απευθείας. Βρίσκεται αποθηκευμένο στο σύστημα.")
+        else:
+            st.image(img_path, use_container_width=True)
+    
 else:
-    st.info("Ξεκινήστε την πρώτη σας καταχώρηση από το μενού αριστερά!")
+    st.info("👋 Καλώς ορίσατε κ. Σκλίβα. Συμπληρώστε την πρώτη δαπάνη στο μενού αριστερά.")
