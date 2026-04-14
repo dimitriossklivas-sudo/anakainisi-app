@@ -4,78 +4,78 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime
 
-# --- ΡΥΘΜΙΣΕΙΣ ΣΕΛΙΔΑΣ ---
-st.set_page_config(page_title="Σκλίβας Δημήτριος | v4.3", layout="wide", page_icon="🏠")
+# --- 1. ΡΥΘΜΙΣΕΙΣ ΣΕΛΙΔΑΣ ---
+st.set_page_config(page_title="Σκλίβας Δημήτριος | v4.5", layout="wide", page_icon="🏠")
 
-# --- ΑΣΦΑΛΗΣ ΣΥΝΔΕΣΗ ΜΕ GOOGLE SHEETS ---
+# --- 2. ΣΥΝΔΕΣΗ ΜΕ GOOGLE SHEETS ---
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
-    st.error(f"❌ Πρόβλημα στα Secrets: {e}")
+    st.error(f"❌ Σφάλμα στα Secrets: {e}")
     st.stop()
 
-def get_data(sheet, columns):
+# Συναρτήσεις για διαχείριση δεδομένων
+def load_data(sheet_name, columns):
     try:
-        return conn.read(worksheet=sheet, ttl="0")
+        return conn.read(worksheet=sheet_name, ttl="0")
     except:
         return pd.DataFrame(columns=columns)
 
-# --- HEADER ---
+# --- 3. LOGO & ΤΙΤΛΟΣ ---
 st.markdown("<h1 style='text-align: center; color: #D4AF37;'>ΣΚΛΙΒΑΣ ΔΗΜΗΤΡΙΟΣ</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: gray;'>Renovation Manager v4.3 (Cloud Sync)</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: gray;'>Renovation Cloud Manager v4.5</p>", unsafe_allow_html=True)
 
-# --- TABS ---
-t1, t2, t3, t4 = st.tabs(["📊 Έξοδα", "👷 Συνεργεία", "📦 Υλικά", "💰 Προσφορές"])
+# --- 4. ΚΥΡΙΩΣ ΜΕΝΟΥ (TABS) ---
+tabs = st.tabs(["📊 Έξοδα & Dashboard", "👷 Συνεργεία", "💰 Προσφορές"])
 
-# --- 📊 ΕΝΟΤΗΤΑ ΕΞΟΔΩΝ ---
-with t1:
-    df_exp = get_data("Expenses", ["Ημερομηνία", "Περιγραφή", "Κατηγορία", "Ποσό", "Πληρωτής"])
+# --- ΤΑΒ 1: ΕΞΟΔΑ ---
+with tabs[0]:
+    df_exp = load_data("Expenses", ["Ημερομηνία", "Περιγραφή", "Κατηγορία", "Ποσό", "Πληρωτής"])
+    
     with st.sidebar:
-        st.header("➕ Νέα Καταχώρηση")
-        with st.form("f1", clear_on_submit=True):
-            d = st.date_input("Ημερομηνία")
-            desc = st.text_input("Περιγραφή")
-            cat = st.selectbox("Κατηγορία", ["Οικοδομικά", "Υδραυλικά", "Ηλεκτρολογικά", "Κουζίνα", "Άλλο"])
-            amt = st.number_input("Ποσό (€)", min_value=0.0)
-            p = st.radio("Πληρωτής", ["Εγώ", "Πατέρας"])
-            if st.form_submit_button("Αποθήκευση"):
-                new_row = pd.DataFrame([{"Ημερομηνία": str(d), "Περιγραφή": desc, "Κατηγορία": cat, "Ποσό": amt, "Πληρωτής": p}])
-                updated = pd.concat([df_exp, new_row], ignore_index=True)
-                conn.update(worksheet="Expenses", data=updated)
+        st.header("➕ Νέα Δαπάνη")
+        with st.form("expense_form", clear_on_submit=True):
+            e_date = st.date_input("Ημερομηνία")
+            e_desc = st.text_input("Περιγραφή")
+            e_cat = st.selectbox("Κατηγορία", ["Οικοδομικά", "Υδραυλικά", "Ηλεκτρολογικά", "Κουζίνα", "Άλλο"])
+            e_amt = st.number_input("Ποσό (€)", min_value=0.0)
+            e_payer = st.radio("Πληρωτής", ["Εγώ", "Πατέρας"])
+            
+            if st.form_submit_button("Αποθήκευση στο Cloud"):
+                new_row = pd.DataFrame([{
+                    "Ημερομηνία": str(e_date),
+                    "Περιγραφή": e_desc,
+                    "Κατηγορία": e_cat,
+                    "Ποσό": e_amt,
+                    "Πληρωτής": e_payer
+                }])
+                updated_df = pd.concat([df_exp, new_row], ignore_index=True)
+                conn.update(worksheet="Expenses", data=updated_df)
                 st.success("Συγχρονίστηκε!")
                 st.rerun()
-    
+
     if not df_exp.empty:
-        st.metric("Σύνολο", f"{df_exp['Ποσό'].sum():,.2f} €")
-        st.dataframe(df_exp, use_container_width=True)
-        st.plotly_chart(px.pie(df_exp, values='Ποσό', names='Κατηγορία', title="Κατανομή Εξόδων"))
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            st.metric("Συνολικά Έξοδα", f"{df_exp['Ποσό'].sum():,.2f} €")
+            fig = px.pie(df_exp, values='Ποσό', names='Κατηγορία', hole=0.3)
+            st.plotly_chart(fig, use_container_width=True)
+        with col2:
+            st.dataframe(df_exp, use_container_width=True)
+    else:
+        st.info("Δεν υπάρχουν δεδομένα στο φύλλο 'Expenses'.")
 
-# --- 👷 ΕΝΟΤΗΤΑ ΣΥΝΕΡΓΕΙΩΝ ---
-with t2:
-    st.subheader("Στοιχεία Επικοινωνίας")
-    df_con = get_data("Contacts", ["Όνομα", "Ειδικότητα", "Τηλέφωνο"])
+# --- ΤΑΒ 2: ΣΥΝΕΡΓΕΙΑ ---
+with tabs[1]:
+    st.subheader("👷 Διαχείριση Επαφών")
+    df_con = load_data("Contacts", ["Όνομα", "Ειδικότητα", "Τηλέφωνο"])
+    
     with st.expander("Προσθήκη Επαφής"):
-        with st.form("f2", clear_on_submit=True):
-            n = st.text_input("Όνομα")
-            s = st.text_input("Ειδικότητα")
-            ph = st.text_input("Τηλέφωνο")
-            if st.form_submit_button("Αποθήκευση Επαφής"):
-                new_c = pd.DataFrame([{"Όνομα": n, "Ειδικότητα": s, "Τηλέφωνο": ph}])
+        with st.form("contact_form", clear_on_submit=True):
+            c_name = st.text_input("Όνομα")
+            c_spec = st.text_input("Ειδικότητα")
+            c_phone = st.text_input("Τηλέφωνο")
+            if st.form_submit_button("Αποθήκευση"):
+                new_c = pd.DataFrame([{"Όνομα": c_name, "Ειδικότητα": c_spec, "Τηλέφωνο": c_phone}])
                 updated_c = pd.concat([df_con, new_c], ignore_index=True)
-                conn.update(worksheet="Contacts", data=updated_c)
-                st.rerun()
-    st.table(df_con)
-
-# --- 📦 ΕΝΟΤΗΤΑ ΥΛΙΚΩΝ ---
-with t3:
-    st.subheader("Παραγγελίες Υλικών")
-    df_mat = get_data("Materials", ["Υλικό", "Κατάσταση"])
-    # Παρόμοια φόρμα καταχώρησης...
-    st.dataframe(df_mat, use_container_width=True)
-
-# --- 💰 ΕΝΟΤΗΤΑ ΠΡΟΣΦΟΡΩΝ ---
-with t4:
-    st.subheader("Σύγκριση Προσφορών")
-    df_off = get_data("Offers", ["Προμηθευτής", "Ποσό", "Κατάσταση"])
-    # Παρόμοια φόρμα καταχώρησης...
-    st.dataframe(df_off, use_container_width=True)
+                conn.update
