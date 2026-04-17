@@ -108,55 +108,46 @@ with tabs[1]:
                 st.rerun()
 
 # ---------------------------------------------------------
-# 3. ΕΝΟΤΗΤΑ ΠΡΟΟΔΟΥ (Με Μπάρες & Ποσοστά)
+# 3. ΕΝΟΤΗΤΑ ΠΡΟΟΔΟΥ (Με Οικονομική Ολοκλήρωση)
 # ---------------------------------------------------------
 with tabs[2]:
-    st.subheader("📦 Παρακολούθηση & Εξέλιξη Εργασιών")
+    st.subheader("📦 Πρόοδος Εργασιών & Οικονομική Εικόνα")
     df_p = safe_read("Progress")
+    df_e = safe_read("Expenses")
     
     if not df_p.empty:
-        # Συνολική Πρόοδος Έργου
-        total_tasks = len(df_p)
-        done_tasks = len(df_p[df_p['Κατάσταση'] == "Ολοκληρώθηκε"])
-        total_progress = done_tasks / total_tasks if total_tasks > 0 else 0
-        
-        st.write(f"### Συνολική Ολοκλήρωση: {total_progress*100:.0f}%")
-        st.progress(total_progress)
-        st.divider()
-
-        # Λίστα Εργασιών με Μπάρες
         for i, r in df_p.iterrows():
-            col_text, col_btn = st.columns([3, 1])
-            
-            with col_text:
-                st.write(f"**{r['Εργασία']}**")
-                # Μπάρα για την συγκεκριμένη εργασία
-                status_val = 1.0 if r['Κατάσταση'] == "Ολοκληρώθηκε" else 0.0
-                st.progress(status_val)
-            
-            with col_btn:
-                # Κουμπί εναλλαγής κατάστασης
-                label = "✅ Τέλος" if r['Κατάσταση'] != "Ολοκληρώθηκε" else "🔄 Επαναφορά"
-                if st.button(label, key=f"btn_p_{i}"):
-                    new_status = "Ολοκληρώθηκε" if r['Κατάσταση'] != "Ολοκληρώθηκε" else "Εκκρεμεί"
-                    df_p.at[i, 'Κατάσταση'] = new_status
-                    conn.update(worksheet="Progress", data=df_p)
-                    st.rerun()
-            st.write("") # Κενό ανάμεσα στις εργασίες
+            with st.container():
+                # Υπολογισμός πληρωμών από το φύλλο Expenses για τη συγκεκριμένη εργασία
+                # Ψάχνει στην Περιγραφή των εξόδων αν περιέχεται το όνομα της εργασίας
+                payments_done = 0
+                if not df_e.empty:
+                    payments_done = df_e[df_e['Περιγραφή'].str.contains(r['Εργασία'], case=False, na=False)]['Ποσό'].sum()
+                
+                total_deal = r['Συνολική Αμοιβή'] if 'Συνολική Αμοιβή' in r else 0
+                
+                # Υπολογισμός ποσοστού πληρωμής
+                pay_percent = (payments_done / total_deal) if total_deal > 0 else 0
+                
+                col1, col2, col3 = st.columns([2, 2, 1])
+                
+                with col1:
+                    st.write(f"### {r['Εργασία']}")
+                    st.write(f"**Κατάσταση:** {r['Κατάσταση']}")
+                
+                with col2:
+                    st.write(f"**Πληρωμένο:** {payments_done:,.2f} / {total_deal:,.2f} €")
+                    st.progress(min(pay_percent, 1.0))
+                    st.caption(f"Οικονομική Εξόφληση: {pay_percent*100:.1f}%")
+                
+                with col3:
+                    if st.button("✅ Ολοκλήρωση", key=f"done_{i}"):
+                        df_p.at[i, 'Κατάσταση'] = "Ολοκληρώθηκε"
+                        conn.update(worksheet="Progress", data=df_p)
+                        st.rerun()
+                st.divider()
     else:
-        st.info("Η λίστα εργασιών είναι κενή στο Google Sheets (Φύλλο: Progress).")
-
-    with st.expander("➕ Προσθήκη Νέας Εγκεκριμένης Εργασίας"):
-        with st.form("add_task_form", clear_on_submit=True):
-            new_t = st.text_input("Περιγραφή Εργασίας")
-            if st.form_submit_button("Προσθήκη στη Λίστα"):
-                if new_t:
-                    new_row = pd.DataFrame([{"Εργασία": new_t, "Κατάσταση": "Εκκρεμεί"}])
-                    updated_p = pd.concat([df_p, new_row], ignore_index=True)
-                    conn.update(worksheet="Progress", data=updated_p)
-                    st.success("Η εργασία προστέθηκε!")
-                    st.rerun()
-
+        st.info("Δεν βρέθηκαν εργασίες στο φύλλο Progress.")
 # 4. ΠΡΟΣΦΟΡΕΣ
 with tabs[3]:
     st.subheader("💰 Προσφορές")
