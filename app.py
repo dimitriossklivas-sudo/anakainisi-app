@@ -31,122 +31,107 @@ def safe_read(sheet_name):
 # --- ΔΗΜΙΟΥΡΓΙΑ TABS ---
 tabs = st.tabs(["📊 Έξοδα & Στατιστικά", "👷 Συνεργεία", "📦 Πρόοδος", "💰 Προσφορές", "🏦 Δανειοδότηση"])
 
-# 1. ΕΞΟΔΑ & ΣΤΑΤΙΣΤΙΚΑ
+# 1. ΕΞΟΔΑ & ΣΤΑΤΙΣΤΙΚΑ (Επαναφορά Στατιστικών)
 with tabs[0]:
     df_exp = safe_read("Expenses")
     if not df_exp.empty:
-        # Συνολικά Ποσά (Metrics)
-        m1, m2, m3 = st.columns(3)
-        total = df_exp['Ποσό'].sum()
-        ego = df_exp[df_exp['Πληρωτής'] == "Εγώ"]['Ποσό'].sum()
-        father = df_exp[df_exp['Πληρωτής'] == "Πατέρας"]['Ποσό'].sum()
+        # Καθαρισμός στηλών για σιγουριά
+        df_exp.columns = df_exp.columns.str.strip()
         
-        m1.metric("Συνολικά Έξοδα", f"{total:,.2f} €")
-        m2.metric("Πληρωμές (Εγώ)", f"{ego:,.2f} €")
-        m3.metric("Πληρωμές (Πατέρας)", f"{father:,.2f} €")
+        # Metrics - Τα μεγάλα νούμερα που βλέπατε πριν
+        m1, m2, m3 = st.columns(3)
+        total_val = df_exp['Ποσό'].sum()
+        ego_val = df_exp[df_exp['Πληρωτής'] == "Εγώ"]['Ποσό'].sum()
+        father_val = df_exp[df_exp['Πληρωτής'] == "Πατέρας"]['Ποσό'].sum()
+        
+        m1.metric("Συνολικά Έξοδα", f"{total_val:,.2f} €")
+        m2.metric("Πληρωμές (Εγώ)", f"{ego_val:,.2f} €")
+        m3.metric("Πληρωμές (Πατέρας)", f"{father_val:,.2f} €")
         
         st.divider()
         
-        # Διαγράμματα
+        # Διαγράμματα (Πίτα και Μπάρες)
         c1, c2 = st.columns(2)
         with c1:
             fig_pie = px.pie(df_exp, values='Ποσό', names='Κατηγορία', title="Κατανομή ανά Εργασία", hole=0.4)
             st.plotly_chart(fig_pie, use_container_width=True)
         with c2:
-            # Grouped bar chart για να βλέπεις ποιος πλήρωσε τι ανά κατηγορία
             fig_bar = px.bar(df_exp, x='Κατηγορία', y='Ποσό', color='Πληρωτής', 
-                             title="Πληρωμές ανά Άτομο & Κατηγορία", barmode='group')
+                             title="Πληρωμές ανά Άτομο", barmode='group')
             st.plotly_chart(fig_bar, use_container_width=True)
 
-    # Φόρμα Εισαγωγής (v5.1)
+    # Φόρμα Εισαγωγής
     with st.expander("➕ Καταχώρηση Νέου Εξόδου"):
-        with st.form("new_exp_v51", clear_on_submit=True):
-            f_col1, f_col2 = st.columns(2)
-            with f_col1:
+        with st.form("new_exp_v54", clear_on_submit=True):
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
                 e_date = st.date_input("Ημερομηνία")
                 e_cat = st.selectbox("Κατηγορία", ["Υδραυλικά", "Οικοδομικά", "Ηλεκτρολογικά", "Κουζίνα", "Μόνωση", "Άλλο"])
                 e_type = st.radio("Είδος", ["Αμοιβή", "Υλικά"], horizontal=True)
-            with f_col2:
+            with col_f2:
                 e_amt = st.number_input("Ποσό (€)", min_value=0.0)
                 e_payer = st.radio("Πληρωτής", ["Εγώ", "Πατέρας"], horizontal=True)
             e_desc = st.text_input("Περιγραφή")
             if st.form_submit_button("Αποθήκευση"):
-                new_data = pd.DataFrame([{"Ημερομηνία": str(e_date), "Περιγραφή": e_desc, "Κατηγορία": e_cat, 
+                new_row = pd.DataFrame([{"Ημερομηνία": str(e_date), "Περιγραφή": e_desc, "Κατηγορία": e_cat, 
                                           "Ποσό": e_amt, "Πληρωτής": e_payer, "Είδος": e_type}])
-                conn.update(worksheet="Expenses", data=pd.concat([df_exp, new_data], ignore_index=True))
-                st.success("Το έξοδο αποθηκεύτηκε!")
+                conn.update(worksheet="Expenses", data=pd.concat([df_exp, new_row], ignore_index=True))
                 st.rerun()
 
-# --- 2. ΣΥΝΕΡΓΕΙΑ ---
+# 2. ΣΥΝΕΡΓΕΙΑ
 with tabs[1]:
-    st.subheader("👷 Λίστα Επαφών")
     df_c = safe_read("Contacts")
     if not df_c.empty:
         st.dataframe(df_c, use_container_width=True)
-    else:
-        st.warning("Δεν βρέθηκαν δεδομένα στο φύλλο 'Contacts'.")
 
-# --- 3. ΠΡΟΟΔΟΣ (ΔΙΟΡΘΩΜΕΝΟ v5.3) ---
+# 3. ΠΡΟΟΔΟΣ (Δουλεύει ήδη - την κρατάμε σταθερή)
 with tabs[2]:
-    st.subheader("📦 Εξέλιξη & Οικονομική Εξόφληση")
     df_p = safe_read("Progress")
     df_e = safe_read("Expenses")
-    
     if not df_p.empty:
-        # Προετοιμασία δεδομένων εξόδων με ασφάλεια
         if not df_e.empty:
             df_e.columns = df_e.columns.str.strip()
-            # Μετατροπή στηλών σε κείμενο για να μην χτυπάει το .str.strip()
             df_e['Κατηγορία'] = df_e['Κατηγορία'].astype(str).str.strip()
             if 'Είδος' in df_e.columns:
                 df_e['Είδος'] = df_e['Είδος'].astype(str).str.strip()
 
         for i, r in df_p.iterrows():
+            t_name = str(r['Εργασία']).strip()
             p_done = 0
-            # Ασφαλής καθαρισμός ονόματος εργασίας
-            task_name = str(r['Εργασία']).strip()
-            
             if not df_e.empty and 'Είδος' in df_e.columns:
-                # Φιλτράρισμα αμοιβών
-                mask = (df_e['Κατηγορία'] == task_name) & \
-                       (df_e['Είδος'].isin(["Αμοιβή", "Αμοιβές"]))
+                mask = (df_e['Κατηγορία'] == t_name) & (df_e['Είδος'].isin(["Αμοιβή", "Αμοιβές"]))
                 p_done = df_e[mask]['Ποσό'].sum()
             
             total_agr = r['Συνολική Αμοιβή'] if 'Συνολική Αμοιβή' in r else 0
             perc = (p_done / total_agr) if total_agr > 0 else 0
             
+            st.write(f"### {t_name}")
             col_t, col_m = st.columns([3, 1])
-            with col_t:
-                st.write(f"### {task_name}")
-                st.progress(min(perc, 1.0))
-                st.write(f"💰 Πληρώθηκαν: **{p_done:,.2f} €** / Συμφωνία: {total_agr:,.2f} €")
-            with col_m:
-                st.metric("Εξόφληση", f"{perc*100:.1f}%")
-                if st.button("✅ Ολοκληρώθηκε", key=f"p_btn_v53_{i}"):
-                    df_p.at[i, 'Κατάσταση'] = "Ολοκληρώθηκε"
-                    conn.update(worksheet="Progress", data=df_p)
-                    st.rerun()
+            col_t.progress(min(perc, 1.0))
+            col_t.write(f"💰 Πληρώθηκαν: **{p_done:,.2f} €** / Συμφωνία: {total_agr:,.2f} €")
+            col_m.metric("Εξόφληση", f"{perc*100:.1f}%")
             st.divider()
-    else:
-        st.info("Προσθέστε εργασίες στο φύλλο 'Progress'.")
 
-# --- 4. ΠΡΟΣΦΟΡΕΣ ---
+# 4. ΠΡΟΣΦΟΡΕΣ (Διόρθωση ανάγνωσης)
 with tabs[3]:
-    st.subheader("💰 Διαχείριση Προσφορών")
+    st.subheader("💰 Προσφορές (Αρχείο)")
+    # Δοκιμάζουμε να διαβάσουμε το φύλλο "Offers"
     df_o = safe_read("Offers")
+    if df_o.empty:
+        # Αν είναι άδειο, δοκιμάζουμε το όνομα "Προσφορές" στα ελληνικά
+        df_o = safe_read("Προσφορές")
+        
     if not df_o.empty:
         st.dataframe(df_o, use_container_width=True)
     else:
-        st.warning("Δεν βρέθηκαν δεδομένα στο φύλλο 'Offers'.")
+        st.info("Δεν βρέθηκαν δεδομένα. Βεβαιωθείτε ότι το φύλλο στο Google Sheets ονομάζεται 'Offers'.")
 
 # 5. ΔΑΝΕΙΟΔΟΤΗΣΗ
 with tabs[4]:
-    st.subheader("🏦 Στοιχεία Δανείου")
     df_l = safe_read("Loan")
     if not df_l.empty:
         st.metric("Υπόλοιπο Δανείου", f"{df_l['Υπόλοιπο Δανείου'].iloc[-1]:,.2f} €")
         st.dataframe(df_l, use_container_width=True)
-    st.subheader("🏦 Δανειοδότηση")
     df_l = safe_read("Loan")
     if not df_l.empty:
         st.metric("Υπόλοιπο Δανείου", f"{df_l['Υπόλοιπο Δανείου'].iloc[-1]:,.2f} €")
