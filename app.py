@@ -104,22 +104,50 @@ with tabs[2]:
         st.progress(done_count / total_count)
 
 # ---------------------------------------------------------
-# 4. ΕΝΟΤΗΤΑ ΠΡΟΣΦΟΡΩΝ
+# 4. ΕΝΟΤΗΤΑ ΠΡΟΣΦΟΡΩΝ ΜΕ ΦΩΤΟΓΡΑΦΙΕΣ
 # ---------------------------------------------------------
 with tabs[3]:
     st.subheader("💰 Διαχείριση & Σύγκριση Προσφορών")
     df_offers = conn.read(worksheet="Offers", ttl="0")
     
-    with st.expander("➕ Καταχώρηση Νέας Προσφοράς"):
+    with st.expander("➕ Καταχώρηση Νέας Προσφοράς & Αρχείου"):
         with st.form("offer_form", clear_on_submit=True):
             o_vendor = st.text_input("Προμηθευτής / Τεχνικός")
             o_task = st.text_input("Αφορά την εργασία...")
             o_price = st.number_input("Ποσό Προσφοράς (€)", min_value=0.0)
+            
+            # Εδώ προσθέτουμε την επιλογή αρχείου
+            uploaded_file = st.file_uploader("Ανεβάστε Φωτογραφία ή PDF Προσφοράς", type=['png', 'jpg', 'jpeg', 'pdf'])
+            
             o_status = st.selectbox("Κατάσταση", ["Σε αναμονή", "Εγκρίθηκε", "Απορρίφθηκε"])
+            
             if st.form_submit_button("Αποθήκευση Προσφοράς"):
-                new_o = pd.DataFrame([{"Ημερομηνία": str(pd.Timestamp.now().date()), "Προμηθευτής": o_vendor, "Εργασία": o_task, "Ποσό": o_price, "Κατάσταση": o_status}])
-                updated_o = pd.concat([df_offers, new_o], ignore_index=True)
+                # Σημείωση: Η αποθήκευση του αρχείου στο Cloud απαιτεί Google Drive σύνδεση.
+                # Προς το παρόν, καταγράφουμε τα στοιχεία στο Sheets.
+                new_o = pd.DataFrame([{
+                    "Ημερομηνία": str(pd.Timestamp.now().date()), 
+                    "Προμηθευτής": o_vendor, 
+                    "Εργασία": o_task, 
+                    "Ποσό": o_price, 
+                    "Κατάσταση": o_status,
+                    "Αρχείο": "Ναι" if uploaded_file else "Όχι"
+                }])
+                updated_o = pd.concat([df_offers, new_row], ignore_index=True)
                 conn.update(worksheet="Offers", data=updated_o)
+                
+                if uploaded_file:
+                    st.info(f"Το αρχείο {uploaded_file.name} ανέβηκε προσωρινά. Για μόνιμη αποθήκευση αρχείων απαιτείται σύνδεση με Google Drive.")
+                
                 st.success("Η προσφορά αποθηκεύτηκε!")
                 st.rerun()
+
     st.dataframe(df_offers, use_container_width=True)
+
+    # Προβολή αρχείου αν υπάρχει
+    if uploaded_file is not None:
+        st.write("---")
+        st.write("### Προεπισκόπηση Τελευταίου Αρχείου:")
+        if uploaded_file.type == "application/pdf":
+            st.write("PDF Αρχείο έτοιμο για αρχειοθέτηση.")
+        else:
+            st.image(uploaded_file, caption="Προσφορά", width=400)
