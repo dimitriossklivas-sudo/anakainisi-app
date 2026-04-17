@@ -2,3 +2,5 @@ streamlit
 pandas
 plotly
 st-gsheets-connection
+Pillow
+fpdf2
