@@ -31,68 +31,47 @@ def safe_read(sheet_name):
 # --- ΔΗΜΙΟΥΡΓΙΑ TABS ---
 tabs = st.tabs(["📊 Έξοδα & Στατιστικά", "👷 Συνεργεία", "📦 Πρόοδος", "💰 Προσφορές", "🏦 Δανειοδότηση"])
 
-# ---------------------------------------------------------
-# 1. ΕΝΟΤΗΤΑ ΣΤΑΤΙΣΤΙΚΩΝ & ΕΞΟΔΩΝ (Αναβαθμισμένη v4.7)
-# ---------------------------------------------------------
+# --- Μέσα στο Tab 1: ΕΞΟΔΑ & ΣΤΑΤΙΣΤΙΚΑ ---
 with tabs[0]:
     df_exp = safe_read("Expenses")
     
     if not df_exp.empty:
-        st.subheader("📊 Λεπτομερής Οικονομική Ανάλυση")
+        st.subheader("📊 Ανάλυση Κόστους: Υλικά vs Αμοιβές")
         
-        # 1. ΣΥΝΟΛΙΚΑ ΑΝΑ ΠΛΗΡΩΤΗ (Metric Cards)
-        col_m1, col_m2, col_m3 = st.columns(3)
-        total_spent = df_exp['Ποσό'].sum()
-        
-        # Υπολογισμός ποσών
-        paid_by_me = df_exp[df_exp['Πληρωτής'] == "Εγώ"]['Ποσό'].sum()
-        paid_by_father = df_exp[df_exp['Πληρωτής'] == "Πατέρας"]['Ποσό'].sum()
-        
-        col_m1.metric("Συνολικό Κόστος", f"{total_spent:,.2f} €")
-        col_m2.metric("Πληρωμές (Εγώ)", f"{paid_by_me:,.2f} €", delta=f"{(paid_by_me/total_spent)*100:.1f}%")
-        col_m3.metric("Πληρωμές (Πατέρας)", f"{paid_by_father:,.2f} €", delta=f"{(paid_by_father/total_spent)*100:.1f}%")
-        
-        st.divider()
+        # Διάγραμμα που δείχνει το διαχωρισμό Αμοιβών/Υλικών ανά Κατηγορία
+        if 'Είδος' in df_exp.columns:
+            fig_split = px.bar(df_exp, x='Κατηγορία', y='Ποσό', color='Είδος',
+                              title="Διαχωρισμός Αμοιβών και Υλικών ανά Εργασία",
+                              barmode='stack',
+                              color_discrete_map={'Αμοιβή':'#FF4B4B', 'Υλικά':'#00CC96'})
+            st.plotly_chart(fig_pie, use_container_width=True)
 
-        # 2. ΔΙΑΓΡΑΜΜΑΤΑ
-        c_chart1, c_chart2 = st.columns([1, 1])
-        
-        with c_chart1:
-            st.write("### 🍰 Συνολική Συμμετοχή")
-            fig_payer_pie = px.pie(df_exp, values='Ποσό', names='Πληρωτής', 
-                                  color='Πληρωτής', 
-                                  color_discrete_map={'Εγώ':'#D4AF37', 'Πατέρας':'#4A90E2'},
-                                  hole=0.4)
-            st.plotly_chart(fig_payer_pie, use_container_width=True)
-
-        with c_chart2:
-            st.write("### 📊 Ανάλυση ανά Κατηγορία & Πληρωτή")
-            # Δημιουργία Stacked Bar Chart
-            fig_bar = px.bar(df_exp, x='Κατηγορία', y='Ποσό', color='Πληρωτής',
-                             title="Ποιος πλήρωσε τι σε κάθε κατηγορία",
-                             barmode='stack',
-                             color_discrete_map={'Εγώ':'#D4AF37', 'Πατέρας':'#4A90E2'})
-            st.plotly_chart(fig_bar, use_container_width=True)
-
-        st.divider()
-        st.write("### 📝 Πρόσφατες Καταχωρήσεις")
-        st.dataframe(df_exp.tail(10), use_container_width=True)
-    
-    # Φόρμα εισαγωγής (παραμένει η ίδια αλλά ελέγχουμε τα ονόματα)
     with st.expander("➕ Καταχώρηση Νέου Εξόδου"):
-        with st.form("exp_form_v47", clear_on_submit=True):
-            e_date = st.date_input("Ημερομηνία")
-            e_desc = st.text_input("Περιγραφή (π.χ. Αμοιβή Υδραυλικού)")
-            e_cat = st.selectbox("Κατηγορία", ["Οικοδομικά", "Υδραυλικά", "Ηλεκτρολογικά", "Κουζίνα", "Μόνωση", "Άλλο"])
-            e_amt = st.number_input("Ποσό (€)", min_value=0.0)
-            e_payer = st.radio("Πληρωτής", ["Εγώ", "Πατέρας"], horizontal=True)
+        with st.form("exp_form_v48", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                e_date = st.date_input("Ημερομηνία")
+                e_cat = st.selectbox("Κατηγορία", ["Υδραυλικά", "Οικοδομικά", "Ηλεκτρολογικά", "Μόνωση", "Άλλο"])
+                # ΝΕΟ ΠΕΔΙΟ ΔΙΑΧΩΡΙΣΜΟΥ
+                e_type = st.radio("Είδος Εξόδου", ["Αμοιβή", "Υλικά"], horizontal=True)
+            with col2:
+                e_amt = st.number_input("Ποσό (€)", min_value=0.0)
+                e_payer = st.radio("Πληρωτής", ["Εγώ", "Πατέρας"], horizontal=True)
+            
+            e_desc = st.text_input("Λεπτομέρειες (π.χ. Αγορά σωλήνων ή Β' δόση υδραυλικού)")
+            
             if st.form_submit_button("Αποθήκευση"):
-                new_data = pd.DataFrame([{"Ημερομηνία": str(e_date), "Περιγραφή": e_desc, "Κατηγορία": e_cat, "Ποσό": e_amt, "Πληρωτής": e_payer}])
-                updated_df = pd.concat([df_exp, new_data], ignore_index=True)
-                conn.update(worksheet="Expenses", data=updated_df)
-                st.success("Το έξοδο αποθηκεύτηκε!")
+                new_data = pd.DataFrame([{
+                    "Ημερομηνία": str(e_date), 
+                    "Περιγραφή": e_desc, 
+                    "Κατηγορία": e_cat, 
+                    "Είδος": e_type, # Αποθήκευση του διαχωρισμού
+                    "Ποσό": e_amt, 
+                    "Πληρωτής": e_payer
+                }])
+                conn.update(worksheet="Expenses", data=pd.concat([df_exp, new_data], ignore_index=True))
+                st.success(f"Καταγράφηκε: {e_type} για {e_cat}")
                 st.rerun()
-
 # 2. ΣΥΝΕΡΓΕΙΑ
 with tabs[1]:
     st.subheader("👷 Λίστα Επαφών")
@@ -108,46 +87,80 @@ with tabs[1]:
                 st.rerun()
 
 # ---------------------------------------------------------
-# 3. ΕΝΟΤΗΤΑ ΠΡΟΟΔΟΥ (Με Οικονομική Ολοκλήρωση)
+# 3. ΕΝΟΤΗΤΑ ΠΡΟΟΔΟΥ - ΣΥΝΔΕΣΗ ΜΕ ΟΙΚΟΝΟΜΙΚΑ (v4.8)
 # ---------------------------------------------------------
 with tabs[2]:
-    st.subheader("📦 Πρόοδος Εργασιών & Οικονομική Εικόνα")
+    st.subheader("📦 Εξέλιξη Εργασιών & Έλεγχος Πληρωμών")
+    
+    # Διαβάζουμε και τα δύο φύλλα για να κάνουμε τη διασταύρωση
     df_p = safe_read("Progress")
     df_e = safe_read("Expenses")
     
     if not df_p.empty:
+        # Συνολική πρόοδο έργου (οπτικά)
+        total_tasks = len(df_p)
+        done_tasks = len(df_p[df_p['Κατάσταση'] == "Ολοκληρώθηκε"])
+        st.write(f"**Συνολική Ολοκλήρωση Έργου: {done_tasks}/{total_tasks} Εργασίες**")
+        st.progress(done_tasks / total_tasks if total_tasks > 0 else 0)
+        st.divider()
+
         for i, r in df_p.iterrows():
             with st.container():
-                # Υπολογισμός πληρωμών από το φύλλο Expenses για τη συγκεκριμένη εργασία
-                # Ψάχνει στην Περιγραφή των εξόδων αν περιέχεται το όνομα της εργασίας
-                payments_done = 0
-                if not df_e.empty:
-                    payments_done = df_e[df_e['Περιγραφή'].str.contains(r['Εργασία'], case=False, na=False)]['Ποσό'].sum()
+                # 1. ΥΠΟΛΟΓΙΣΜΟΣ ΠΛΗΡΩΜΩΝ
+                # Ψάχνουμε στα έξοδα όπου η Κατηγορία ταυτίζεται με την Εργασία 
+                # ΚΑΙ το Είδος είναι "Αμοιβή" (για να μην μετρήσουμε τα υλικά)
+                current_payments = 0
+                if not df_e.empty and 'Είδος' in df_e.columns:
+                    current_payments = df_e[
+                        (df_e['Κατηγορία'] == r['Εργασία']) & 
+                        (df_e['Είδος'] == "Αμοιβή")
+                    ]['Ποσό'].sum()
                 
-                total_deal = r['Συνολική Αμοιβή'] if 'Συνολική Αμοιβή' in r else 0
+                # 2. ΣΥΝΟΛΙΚΗ ΣΥΜΦΩΝΙΑ
+                total_agreement = r['Συνολική Αμοιβή'] if 'Συνολική Αμοιβή' in r else 0
                 
-                # Υπολογισμός ποσοστού πληρωμής
-                pay_percent = (payments_done / total_deal) if total_deal > 0 else 0
+                # 3. ΥΠΟΛΟΓΙΣΜΟΣ ΠΟΣΟΣΤΟΥ ΕΞΟΦΛΗΣΗΣ
+                pay_ratio = (current_payments / total_agreement) if total_agreement > 0 else 0
                 
+                # ΕΜΦΑΝΙΣΗ
                 col1, col2, col3 = st.columns([2, 2, 1])
                 
                 with col1:
-                    st.write(f"### {r['Εργασία']}")
-                    st.write(f"**Κατάσταση:** {r['Κατάσταση']}")
+                    st.markdown(f"### {r['Εργασία']}")
+                    st.caption(f"Κατάσταση: {r['Κατάσταση']}")
                 
                 with col2:
-                    st.write(f"**Πληρωμένο:** {payments_done:,.2f} / {total_deal:,.2f} €")
-                    st.progress(min(pay_percent, 1.0))
-                    st.caption(f"Οικονομική Εξόφληση: {pay_percent*100:.1f}%")
+                    # Μπάρα οικονομικής εξόφλησης
+                    st.write(f"💰 **{current_payments:,.2f} €** / {total_agreement:,.2f} €")
+                    st.progress(min(pay_ratio, 1.0))
+                    st.caption(f"Εξόφληση Αμοιβής: {pay_ratio*100:.1f}%")
                 
                 with col3:
-                    if st.button("✅ Ολοκλήρωση", key=f"done_{i}"):
-                        df_p.at[i, 'Κατάσταση'] = "Ολοκληρώθηκε"
-                        conn.update(worksheet="Progress", data=df_p)
-                        st.rerun()
-                st.divider()
+                    # Κουμπί ολοκλήρωσης εργασίας
+                    if r['Κατάσταση'] != "Ολοκληρώθηκε":
+                        if st.button("✅ Τέλος", key=f"p_done_{i}"):
+                            df_p.at[i, 'Κατάσταση'] = "Ολοκληρώθηκε"
+                            conn.update(worksheet="Progress", data=df_p)
+                            st.rerun()
+                    else:
+                        st.success("Ολοκληρώθηκε")
+                
+                st.write("---") # Διαχωριστική γραμμή ανά εργασία
     else:
-        st.info("Δεν βρέθηκαν εργασίες στο φύλλο Progress.")
+        st.info("Η λίστα εργασιών είναι κενή. Προσθέστε εργασίες στο Google Sheets (Φύλλο: Progress).")
+
+    # Φόρμα για προσθήκη νέας εργασίας απευθείας από την εφαρμογή
+    with st.expander("➕ Προσθήκη Νέας Εργασίας προς Παρακολούθηση"):
+        with st.form("new_task_form", clear_on_submit=True):
+            nt_name = st.text_input("Όνομα Εργασίας (π.χ. Υδραυλικά)")
+            nt_deal = st.number_input("Συνολική Συμφωνημένη Αμοιβή (€)", min_value=0.0)
+            if st.form_submit_button("Προσθήκη"):
+                if nt_name:
+                    new_task = pd.DataFrame([{"Εργασία": nt_name, "Κατάσταση": "Εκκρεμεί", "Συνολική Αμοιβή": nt_deal}])
+                    updated_p = pd.concat([df_p, new_task], ignore_index=True)
+                    conn.update(worksheet="Progress", data=updated_p)
+                    st.success(f"Η εργασία '{nt_name}' προστέθηκε!")
+                    st.rerun()
 # 4. ΠΡΟΣΦΟΡΕΣ
 with tabs[3]:
     st.subheader("💰 Προσφορές")
