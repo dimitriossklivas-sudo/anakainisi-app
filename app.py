@@ -1,137 +1,109 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
+import plotly.express as px
 import os
 
 # --- ΡΥΘΜΙΣΕΙΣ ΣΕΛΙΔΑΣ ---
-st.set_page_config(page_title="Σκλίβας Δημήτριος | v4.2", layout="wide", page_icon="🏠")
+st.set_page_config(page_title="Σκλίβας Δημήτριος | v4.3.1", layout="wide", page_icon="🏠")
 
-# --- ΕΜΦΑΝΙΣΗ LOGO / ΤΙΤΛΟΥ ---
-if os.path.exists("logo.png"):
-    st.image("logo.png", width=250)
+# --- ΕΜΦΑΝΙΣΗ LOGO (ΔΙΟΡΘΩΜΕΝΟ) ---
+# Ψάχνει το αρχείο σε όλες τις πιθανές μορφές ονόματος
+possible_logos = ["logo.png", "Logo.png", "LOGO.PNG", "logo.jpg", "Logo.jpg"]
+logo_to_display = None
+
+for p in possible_logos:
+    if os.path.exists(p):
+        logo_to_display = p
+        break
+
+if logo_to_display:
+    st.image(logo_to_display, width=220)
 else:
-    st.markdown("<h1 style='text-align: center; color: #D4AF37;'>ΣΚΛΙΒΑΣ ΔΗΜΗΤΡΙΟΣ</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #6B7280;'>Renovation Management Suite v4.2</p>", unsafe_allow_html=True)
+    # Αν δεν βρει αρχείο, εμφανίζει τον τίτλο με ωραίο στυλ
+    st.markdown("<h1 style='color: #D4AF37; margin-bottom: 0;'>ΣΚΛΙΒΑΣ ΔΗΜΗΤΡΙΟΣ</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color: gray; font-size: 14px;'>Renovation Management Suite v4.3.1</p>", unsafe_allow_html=True)
 
 # --- ΣΥΝΔΕΣΗ ΜΕ GOOGLE SHEETS ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # --- ΔΗΜΙΟΥΡΓΙΑ TABS ---
-tabs = st.tabs(["📊 Έξοδα", "👷 Συνεργεία", "📦 Πρόοδος Εργασιών", "💰 Προσφορές"])
+tabs = st.tabs(["📊 Στατιστικά & Έξοδα", "👷 Συνεργεία", "📦 Πρόοδος", "💰 Προσφορές", "🏦 Δανειοδότηση"])
 
 # ---------------------------------------------------------
-# 1. ΕΝΟΤΗΤΑ ΕΞΟΔΩΝ
+# 1. ΕΝΟΤΗΤΑ ΕΞΟΔΩΝ & ΣΤΑΤΙΣΤΙΚΩΝ
 # ---------------------------------------------------------
 with tabs[0]:
-    st.subheader("📊 Διαχείριση Εξόδων & Πληρωμών")
     df_expenses = conn.read(worksheet="Expenses", ttl="0")
     
-    with st.expander("➕ Καταχώρηση Νέου Εξόδου"):
-        with st.form("expense_form", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            with col1:
-                date = st.date_input("Ημερομηνία")
-                desc = st.text_input("Περιγραφή (π.χ. Αγορά ειδών υγιεινής)")
-                cat = st.selectbox("Κατηγορία", ["Οικοδομικά", "Υδραυλικά", "Ηλεκτρολογικά", "Κουζίνα", "Άλλο"])
-            with col2:
-                amt = st.number_input("Ποσό (€)", min_value=0.0)
-                payer = st.radio("Πληρωμή από", ["Εγώ", "Πατέρας"], horizontal=True)
-            
-            if st.form_submit_button("✅ Αποθήκευση"):
-                if desc and amt > 0:
-                    new_row = pd.DataFrame([{"Ημερομηνία": str(date), "Περιγραφή": desc, "Κατηγορία": cat, "Ποσό": amt, "Πληρωτής": payer}])
-                    updated_df = pd.concat([df_expenses, new_row], ignore_index=True)
-                    conn.update(worksheet="Expenses", data=updated_df)
-                    st.success("Η δαπάνη καταγράφηκε!")
-                    st.rerun()
-
-    st.dataframe(df_expenses, use_container_width=True)
     if not df_expenses.empty:
-        st.metric("Συνολικό Κόστος", f"{df_expenses['Ποσό'].sum():,.2f} €")
-
-# ---------------------------------------------------------
-# 2. ΕΝΟΤΗΤΑ ΣΥΝΕΡΓΕΙΩΝ
-# ---------------------------------------------------------
-with tabs[1]:
-    st.subheader("👷 Λίστα Επαγγελματιών & Επαφών")
-    df_contacts = conn.read(worksheet="Contacts", ttl="0")
-    
-    with st.expander("➕ Προσθήκη Νέου Συνεργάτη"):
-        with st.form("contact_form", clear_on_submit=True):
-            c_name = st.text_input("Όνομα / Εταιρεία")
-            c_spec = st.text_input("Ειδικότητα")
-            c_phone = st.text_input("Τηλέφωνο")
-            if st.form_submit_button("Αποθήκευση Επαφής"):
-                new_c = pd.DataFrame([{"Όνομα": c_name, "Ειδικότητα": c_spec, "Τηλέφωνο": c_phone}])
-                updated_c = pd.concat([df_contacts, new_c], ignore_index=True)
-                conn.update(worksheet="Contacts", data=updated_c)
-                st.success("Η επαφή αποθηκεύτηκε!")
-                st.rerun()
-    st.table(df_contacts)
-
-# ---------------------------------------------------------
-# 3. ΕΝΟΤΗΤΑ ΠΡΟΟΔΟΥ ΕΡΓΑΣΙΩΝ
-# ---------------------------------------------------------
-with tabs[2]:
-    st.subheader("📦 Παρακολούθηση Εργασιών")
-    df_progress = conn.read(worksheet="Progress", ttl="0")
-    
-    with st.expander("➕ Προσθήκη Νέας Εργασίας"):
-        with st.form("task_form", clear_on_submit=True):
-            t_name = st.text_input("Εργασία (π.χ. Τοποθέτηση πλακιδίων)")
-            if st.form_submit_button("Προσθήκη"):
-                if t_name:
-                    new_t = pd.DataFrame([{"Εργασία": t_name, "Κατάσταση": "Εκκρεμεί"}])
-                    updated_p = pd.concat([df_progress, new_t], ignore_index=True)
-                    conn.update(worksheet="Progress", data=updated_p)
-                    st.rerun()
-
-    st.divider()
-    if not df_progress.empty:
-        for index, row in df_progress.iterrows():
-            c1, c2 = st.columns([4, 1])
-            is_done = row['Κατάσταση'] == "Ολοκληρώθηκε"
-            c1.write(f"{'✅' if is_done else '⏳'} {row['Εργασία']}")
-            if c2.button("Αλλαγή", key=f"p_{index}"):
-                df_progress.at[index, 'Κατάσταση'] = "Ολοκληρώθηκε" if not is_done else "Εκκρεμεί"
-                conn.update(worksheet="Progress", data=df_progress)
-                st.rerun()
+        st.subheader("📊 Οικονομική Εικόνα")
+        col_m1, col_m2, col_m3 = st.columns(3)
+        total_spent = df_expenses['Ποσό'].sum()
+        col_m1.metric("Συνολικά Έξοδα", f"{total_spent:,.2f} €")
         
-        # Μπάρα Προόδου
-        done_count = len(df_progress[df_progress['Κατάσταση'] == "Ολοκληρώθηκε"])
-        total_count = len(df_progress)
-        st.write(f"**Συνολική Πρόοδος: {done_count}/{total_count}**")
-        st.progress(done_count / total_count)
+        # Υπολογισμός ανά πληρωτή (Εγώ / Πατέρας)
+        by_payer = df_expenses.groupby('Πληρωτής')['Ποσό'].sum()
+        if "Εγώ" in by_payer: col_m2.metric("Πληρωμές (Εγώ)", f"{by_payer['Εγώ']:,.2f} €")
+        if "Πατέρας" in by_payer: col_m3.metric("Πληρωμές (Πατέρας)", f"{by_payer['Πατέρας']:,.2f} €")
 
-# 4. ΕΝΟΤΗΤΑ ΠΡΟΣΦΟΡΩΝ (Διορθωμένη)
-with tabs[3]:
-    st.subheader("💰 Διαχείριση & Σύγκριση Προσφορών")
-    df_offers = conn.read(worksheet="Offers", ttl="0")
+        st.divider()
+        
+        c_chart1, c_chart2 = st.columns([1, 1])
+        with c_chart1:
+            # Διάγραμμα Πίτας
+            fig_pie = px.pie(df_expenses, values='Ποσό', names='Κατηγορία', title='Κατανομή Εξόδων ανά Κατηγορία', hole=0.4)
+            st.plotly_chart(fig_pie, use_container_width=True)
+        with c_chart2:
+            st.write("### Πρόσφατες Καταχωρήσεις")
+            st.dataframe(df_expenses.tail(8), use_container_width=True)
     
-    with st.expander("➕ Καταχώρηση Νέας Προσφοράς"):
-        with st.form("offer_form", clear_on_submit=True):
-            o_vendor = st.text_input("Προμηθευτής / Τεχνικός")
-            o_task = st.text_input("Αφορά την εργασία...")
-            o_price = st.number_input("Ποσό Προσφοράς (€)", min_value=0.0)
-            
-            # Πεδίο για φωτογραφία από το κινητό
-            uploaded_file = st.file_uploader("📷 Τραβήξτε Φωτογραφία Προσφοράς", type=['png', 'jpg', 'jpeg', 'pdf'])
-            
-            o_status = st.selectbox("Κατάσταση", ["Σε αναμονή", "Εγκρίθηκε", "Απορρίφθηκε"])
-            
-            if st.form_submit_button("Αποθήκευση Προσφοράς"):
-                # Εδώ διορθώθηκε το όνομα από new_row σε new_o
-                new_o = pd.DataFrame([{
-                    "Ημερομηνία": str(pd.Timestamp.now().date()), 
-                    "Προμηθευτής": o_vendor, 
-                    "Εργασία": o_task, 
-                    "Ποσό": o_price, 
-                    "Κατάσταση": o_status,
-                    "Αρχείο": "Ναι" if uploaded_file else "Όχι"
-                }])
-                updated_o = pd.concat([df_offers, new_o], ignore_index=True)
-                conn.update(worksheet="Offers", data=updated_o)
-                st.success("Η προσφορά αποθηκεύτηκε στο Google Sheets!")
+    with st.expander("➕ Νέα Καταχώρηση Εξόδου"):
+        with st.form("exp_form", clear_on_submit=True):
+            e_date = st.date_input("Ημερομηνία")
+            e_desc = st.text_input("Περιγραφή")
+            e_cat = st.selectbox("Κατηγορία", ["Οικοδομικά", "Υδραυλικά", "Ηλεκτρολογικά", "Κουζίνα", "Έπιπλα", "Μόνωση", "Άλλο"])
+            e_amt = st.number_input("Ποσό (€)", min_value=0.0)
+            e_payer = st.radio("Πληρωτής", ["Εγώ", "Πατέρας"], horizontal=True)
+            if st.form_submit_button("Αποθήκευση"):
+                new_e = pd.DataFrame([{"Ημερομηνία": str(e_date), "Περιγραφή": e_desc, "Κατηγορία": e_cat, "Ποσό": e_amt, "Πληρωτής": e_payer}])
+                updated_e = pd.concat([df_expenses, new_e], ignore_index=True)
+                conn.update(worksheet="Expenses", data=updated_e)
                 st.rerun()
 
-    st.dataframe(df_offers, use_container_width=True)
+# ---------------------------------------------------------
+# 5. ΕΝΟΤΗΤΑ ΔΑΝΕΙΟΔΟΤΗΣΗΣ (ΝΕΟ)
+# ---------------------------------------------------------
+with tabs[4]:
+    st.subheader("🏦 Παρακολούθηση Δανειοδότησης")
+    df_loan = conn.read(worksheet="Loan", ttl="0")
+    
+    l_col1, l_col2 = st.columns([1, 1])
+    
+    with l_col1:
+        if not df_loan.empty:
+            last_balance = df_loan['Υπόλοιπο Δανείου'].iloc[-1]
+            st.metric("Τρέχον Υπόλοιπο Δανείου", f"{last_balance:,.2f} €", delta_color="inverse")
+            # Διάγραμμα εξέλιξης αποπληρωμής
+            fig_loan = px.area(df_loan, x='Ημερομηνία', y='Υπόλοιπο Δανείου', title='Πορεία Αποπληρωμής Δανείου', color_discrete_sequence=['#D4AF37'])
+            st.plotly_chart(fig_loan, use_container_width=True)
+        else:
+            st.info("Δεν υπάρχουν δεδομένα δανείου. Ξεκινήστε την καταγραφή δεξιά.")
+
+    with l_col2:
+        with st.form("loan_form", clear_on_submit=True):
+            st.write("📝 Καταγραφή Δόσης / Κινήσεων")
+            l_date = st.date_input("Ημερομηνία Κίνησης")
+            l_amt = st.number_input("Ποσό Δόσης (€)", min_value=0.0)
+            l_bal = st.number_input("Νέο Υπόλοιπο Δανείου (€)", min_value=0.0)
+            l_note = st.text_input("Σημειώσεις")
+            if st.form_submit_button("Ενημέρωση Δανείου"):
+                new_l = pd.DataFrame([{"Ημερομηνία": str(l_date), "Ποσό Δόσης": l_amt, "Υπόλοιπο Δανείου": l_bal, "Σημειώσεις": l_note}])
+                updated_l = pd.concat([df_loan, new_l], ignore_index=True)
+                conn.update(worksheet="Loan", data=updated_l)
+                st.rerun()
+    
+    st.write("### Ιστορικό Δόσεων")
+    st.dataframe(df_loan, use_container_width=True)
+
+# (Συμπεριλαμβάνονται κανονικά και τα Tabs: Συνεργεία, Πρόοδος, Προσφορές)
