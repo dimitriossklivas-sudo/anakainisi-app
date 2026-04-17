@@ -31,46 +31,75 @@ def safe_read(sheet_name):
 # --- ΔΗΜΙΟΥΡΓΙΑ TABS ---
 tabs = st.tabs(["📊 Έξοδα & Στατιστικά", "👷 Συνεργεία", "📦 Πρόοδος", "💰 Προσφορές", "🏦 Δανειοδότηση"])
 
-# --- Μέσα στο Tab 1: ΕΞΟΔΑ & ΣΤΑΤΙΣΤΙΚΑ ---
+# ---------------------------------------------------------
+# 1. ΕΝΟΤΗΤΑ ΣΤΑΤΙΣΤΙΚΩΝ & ΕΞΟΔΩΝ (Επαναφορά & Βελτίωση)
+# ---------------------------------------------------------
 with tabs[0]:
     df_exp = safe_read("Expenses")
     
     if not df_exp.empty:
-        st.subheader("📊 Ανάλυση Κόστους: Υλικά vs Αμοιβές")
+        st.subheader("📊 Οικονομική Σύνοψη")
         
-        # Διάγραμμα που δείχνει το διαχωρισμό Αμοιβών/Υλικών ανά Κατηγορία
-        if 'Είδος' in df_exp.columns:
-            fig_split = px.bar(df_exp, x='Κατηγορία', y='Ποσό', color='Είδος',
-                              title="Διαχωρισμός Αμοιβών και Υλικών ανά Εργασία",
-                              barmode='stack',
-                              color_discrete_map={'Αμοιβή':'#FF4B4B', 'Υλικά':'#00CC96'})
+        # 1. ΚΕΝΤΡΙΚΑ ΝΟΥΜΕΡΑ (METRICS)
+        col_m1, col_m2, col_m3 = st.columns(3)
+        total_spent = df_exp['Ποσό'].sum()
+        
+        # Υπολογισμός ανά πληρωτή
+        paid_by_me = df_exp[df_exp['Πληρωτής'] == "Εγώ"]['Ποσό'].sum()
+        paid_by_father = df_exp[df_exp['Πληρωτής'] == "Πατέρας"]['Ποσό'].sum()
+        
+        col_m1.metric("Συνολικά Έξοδα", f"{total_spent:,.2f} €")
+        col_m2.metric("Πληρωμές (Εγώ)", f"{paid_by_me:,.2f} €")
+        col_m3.metric("Πληρωμές (Πατέρας)", f"{paid_by_father:,.2f} €")
+        
+        st.divider()
+
+        # 2. ΔΙΑΓΡΑΜΜΑΤΑ (Πίτα & Μπάρες)
+        c_chart1, c_chart2 = st.columns([1, 1])
+        
+        with c_chart1:
+            # Πίτα ανά Κατηγορία (Οικοδομικά, Υδραυλικά κλπ)
+            fig_pie = px.pie(df_exp, values='Ποσό', names='Κατηγορία', 
+                             title="Κατανομή ανά Εργασία", hole=0.4)
             st.plotly_chart(fig_pie, use_container_width=True)
 
+        with c_chart2:
+            # Μπάρες ανά Κατηγορία και Πληρωτή
+            fig_bar = px.bar(df_exp, x='Κατηγορία', y='Ποσό', color='Πληρωτής',
+                             title="Ποιος πλήρωσε τι ανά Εργασία",
+                             barmode='group', # Δίπλα-δίπλα μπάρες για καθαρή εικόνα
+                             color_discrete_map={'Εγώ':'#D4AF37', 'Πατέρας':'#4A90E2'})
+            st.plotly_chart(fig_bar, use_container_width=True)
+
+        st.divider()
+        st.write("### 📝 Ιστορικό Εξόδων")
+        st.dataframe(df_exp.tail(15), use_container_width=True)
+    
+    # ΦΟΡΜΑ ΚΑΤΑΧΩΡΗΣΗΣ (Πλήρης με Είδος)
     with st.expander("➕ Καταχώρηση Νέου Εξόδου"):
-        with st.form("exp_form_v48", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            with col1:
+        with st.form("exp_form_final", clear_on_submit=True):
+            f_col1, f_col2 = st.columns(2)
+            with f_col1:
                 e_date = st.date_input("Ημερομηνία")
-                e_cat = st.selectbox("Κατηγορία", ["Υδραυλικά", "Οικοδομικά", "Ηλεκτρολογικά", "Μόνωση", "Άλλο"])
-                # ΝΕΟ ΠΕΔΙΟ ΔΙΑΧΩΡΙΣΜΟΥ
+                e_cat = st.selectbox("Κατηγορία", ["Υδραυλικά", "Οικοδομικά", "Ηλεκτρολογικά", "Κουζίνα", "Μόνωση", "Άλλο"])
                 e_type = st.radio("Είδος Εξόδου", ["Αμοιβή", "Υλικά"], horizontal=True)
-            with col2:
+            with f_col2:
                 e_amt = st.number_input("Ποσό (€)", min_value=0.0)
                 e_payer = st.radio("Πληρωτής", ["Εγώ", "Πατέρας"], horizontal=True)
             
-            e_desc = st.text_input("Λεπτομέρειες (π.χ. Αγορά σωλήνων ή Β' δόση υδραυλικού)")
+            e_desc = st.text_input("Περιγραφή (π.χ. Προκαταβολή ή Αγορά πλακιδίων)")
             
             if st.form_submit_button("Αποθήκευση"):
                 new_data = pd.DataFrame([{
                     "Ημερομηνία": str(e_date), 
                     "Περιγραφή": e_desc, 
                     "Κατηγορία": e_cat, 
-                    "Είδος": e_type, # Αποθήκευση του διαχωρισμού
+                    "Είδος": e_type,
                     "Ποσό": e_amt, 
                     "Πληρωτής": e_payer
                 }])
                 conn.update(worksheet="Expenses", data=pd.concat([df_exp, new_data], ignore_index=True))
-                st.success(f"Καταγράφηκε: {e_type} για {e_cat}")
+                st.success("Το έξοδο αποθηκεύτηκε!")
                 st.rerun()
 # 2. ΣΥΝΕΡΓΕΙΑ
 with tabs[1]:
