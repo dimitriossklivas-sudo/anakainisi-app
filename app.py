@@ -31,30 +31,66 @@ def safe_read(sheet_name):
 # --- ΔΗΜΙΟΥΡΓΙΑ TABS ---
 tabs = st.tabs(["📊 Έξοδα & Στατιστικά", "👷 Συνεργεία", "📦 Πρόοδος", "💰 Προσφορές", "🏦 Δανειοδότηση"])
 
-# 1. ΕΞΟΔΑ & ΣΤΑΤΙΣΤΙΚΑ
+# ---------------------------------------------------------
+# 1. ΕΝΟΤΗΤΑ ΣΤΑΤΙΣΤΙΚΩΝ & ΕΞΟΔΩΝ (Αναβαθμισμένη v4.7)
+# ---------------------------------------------------------
 with tabs[0]:
     df_exp = safe_read("Expenses")
-    if not df_exp.empty:
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            st.metric("Συνολικά Έξοδα", f"{df_exp['Ποσό'].sum():,.2f} €")
-            fig = px.pie(df_exp, values='Ποσό', names='Κατηγορία', hole=0.4, title="Ανάλυση Εξόδων")
-            st.plotly_chart(fig, use_container_width=True)
-        with col2:
-            st.dataframe(df_exp.tail(10), use_container_width=True)
     
-    with st.expander("➕ Προσθήκη Νέου Εξόδου"):
-        with st.form("new_exp_form", clear_on_submit=True):
-            d = st.date_input("Ημερομηνία")
-            de = st.text_input("Περιγραφή")
-            c = st.selectbox("Κατηγορία", ["Οικοδομικά", "Υδραυλικά", "Ηλεκτρολογικά", "Κουζίνα", "Άλλο"])
-            a = st.number_input("Ποσό (€)", min_value=0.0)
-            p = st.radio("Πληρωτής", ["Εγώ", "Πατέρας"], horizontal=True)
+    if not df_exp.empty:
+        st.subheader("📊 Λεπτομερής Οικονομική Ανάλυση")
+        
+        # 1. ΣΥΝΟΛΙΚΑ ΑΝΑ ΠΛΗΡΩΤΗ (Metric Cards)
+        col_m1, col_m2, col_m3 = st.columns(3)
+        total_spent = df_exp['Ποσό'].sum()
+        
+        # Υπολογισμός ποσών
+        paid_by_me = df_exp[df_exp['Πληρωτής'] == "Εγώ"]['Ποσό'].sum()
+        paid_by_father = df_exp[df_exp['Πληρωτής'] == "Πατέρας"]['Ποσό'].sum()
+        
+        col_m1.metric("Συνολικό Κόστος", f"{total_spent:,.2f} €")
+        col_m2.metric("Πληρωμές (Εγώ)", f"{paid_by_me:,.2f} €", delta=f"{(paid_by_me/total_spent)*100:.1f}%")
+        col_m3.metric("Πληρωμές (Πατέρας)", f"{paid_by_father:,.2f} €", delta=f"{(paid_by_father/total_spent)*100:.1f}%")
+        
+        st.divider()
+
+        # 2. ΔΙΑΓΡΑΜΜΑΤΑ
+        c_chart1, c_chart2 = st.columns([1, 1])
+        
+        with c_chart1:
+            st.write("### 🍰 Συνολική Συμμετοχή")
+            fig_payer_pie = px.pie(df_exp, values='Ποσό', names='Πληρωτής', 
+                                  color='Πληρωτής', 
+                                  color_discrete_map={'Εγώ':'#D4AF37', 'Πατέρας':'#4A90E2'},
+                                  hole=0.4)
+            st.plotly_chart(fig_payer_pie, use_container_width=True)
+
+        with c_chart2:
+            st.write("### 📊 Ανάλυση ανά Κατηγορία & Πληρωτή")
+            # Δημιουργία Stacked Bar Chart
+            fig_bar = px.bar(df_exp, x='Κατηγορία', y='Ποσό', color='Πληρωτής',
+                             title="Ποιος πλήρωσε τι σε κάθε κατηγορία",
+                             barmode='stack',
+                             color_discrete_map={'Εγώ':'#D4AF37', 'Πατέρας':'#4A90E2'})
+            st.plotly_chart(fig_bar, use_container_width=True)
+
+        st.divider()
+        st.write("### 📝 Πρόσφατες Καταχωρήσεις")
+        st.dataframe(df_exp.tail(10), use_container_width=True)
+    
+    # Φόρμα εισαγωγής (παραμένει η ίδια αλλά ελέγχουμε τα ονόματα)
+    with st.expander("➕ Καταχώρηση Νέου Εξόδου"):
+        with st.form("exp_form_v47", clear_on_submit=True):
+            e_date = st.date_input("Ημερομηνία")
+            e_desc = st.text_input("Περιγραφή (π.χ. Αμοιβή Υδραυλικού)")
+            e_cat = st.selectbox("Κατηγορία", ["Οικοδομικά", "Υδραυλικά", "Ηλεκτρολογικά", "Κουζίνα", "Μόνωση", "Άλλο"])
+            e_amt = st.number_input("Ποσό (€)", min_value=0.0)
+            e_payer = st.radio("Πληρωτής", ["Εγώ", "Πατέρας"], horizontal=True)
             if st.form_submit_button("Αποθήκευση"):
-                new_row = pd.DataFrame([{"Ημερομηνία": str(d), "Περιγραφή": de, "Κατηγορία": c, "Ποσό": a, "Πληρωτής": p}])
-                updated_df = pd.concat([df_exp, new_row], ignore_index=True)
+                new_data = pd.DataFrame([{"Ημερομηνία": str(e_date), "Περιγραφή": e_desc, "Κατηγορία": e_cat, "Ποσό": e_amt, "Πληρωτής": e_payer}])
+                updated_df = pd.concat([df_exp, new_data], ignore_index=True)
                 conn.update(worksheet="Expenses", data=updated_df)
-                st.success("Το έξοδο καταγράφηκε!")
+                st.success("Το έξοδο αποθηκεύτηκε!")
                 st.rerun()
 
 # 2. ΣΥΝΕΡΓΕΙΑ
