@@ -28,17 +28,14 @@ def safe_read(sheet_name):
     except:
         return pd.DataFrame()
 
-# --- ΔΗΜΙΟΥΡΓΙΑ TABS ---
-tabs = st.tabs(["📊 Έξοδα & Στατιστικά", "👷 Συνεργεία", "📦 Πρόοδος", "💰 Προσφορές", "🏦 Δανειοδότηση"])
+# --- ΔΗΜΙΟΥΡΓΙΑ TABS (Προσθήκη 6ης κατηγορίας) ---
+tabs = st.tabs(["📊 Έξοδα & Στατιστικά", "👷 Συνεργεία", "📦 Πρόοδος", "💰 Προσφορές", "🏦 Δανειοδότηση", "📝 Λίστα Εξόδων"])
 
-# 1. ΕΞΟΔΑ & ΣΤΑΤΙΣΤΙΚΑ (Επαναφορά Στατιστικών)
+# 1. ΕΞΟΔΑ & ΣΤΑΤΙΣΤΙΚΑ
 with tabs[0]:
     df_exp = safe_read("Expenses")
     if not df_exp.empty:
-        # Καθαρισμός στηλών για σιγουριά
         df_exp.columns = df_exp.columns.str.strip()
-        
-        # Metrics - Τα μεγάλα νούμερα που βλέπατε πριν
         m1, m2, m3 = st.columns(3)
         total_val = df_exp['Ποσό'].sum()
         ego_val = df_exp[df_exp['Πληρωτής'] == "Εγώ"]['Ποσό'].sum()
@@ -49,8 +46,6 @@ with tabs[0]:
         m3.metric("Πληρωμές (Πατέρας)", f"{father_val:,.2f} €")
         
         st.divider()
-        
-        # Διαγράμματα (Πίτα και Μπάρες)
         c1, c2 = st.columns(2)
         with c1:
             fig_pie = px.pie(df_exp, values='Ποσό', names='Κατηγορία', title="Κατανομή ανά Εργασία", hole=0.4)
@@ -60,9 +55,8 @@ with tabs[0]:
                              title="Πληρωμές ανά Άτομο", barmode='group')
             st.plotly_chart(fig_bar, use_container_width=True)
 
-    # Φόρμα Εισαγωγής
     with st.expander("➕ Καταχώρηση Νέου Εξόδου"):
-        with st.form("new_exp_v54", clear_on_submit=True):
+        with st.form("new_exp_v55", clear_on_submit=True):
             col_f1, col_f2 = st.columns(2)
             with col_f1:
                 e_date = st.date_input("Ημερομηνία")
@@ -84,7 +78,7 @@ with tabs[1]:
     if not df_c.empty:
         st.dataframe(df_c, use_container_width=True)
 
-# 3. ΠΡΟΟΔΟΣ (Δουλεύει ήδη - την κρατάμε σταθερή)
+# 3. ΠΡΟΟΔΟΣ
 with tabs[2]:
     df_p = safe_read("Progress")
     df_e = safe_read("Expenses")
@@ -112,19 +106,13 @@ with tabs[2]:
             col_m.metric("Εξόφληση", f"{perc*100:.1f}%")
             st.divider()
 
-# 4. ΠΡΟΣΦΟΡΕΣ (Διόρθωση ανάγνωσης)
+# 4. ΠΡΟΣΦΟΡΕΣ
 with tabs[3]:
-    st.subheader("💰 Προσφορές (Αρχείο)")
-    # Δοκιμάζουμε να διαβάσουμε το φύλλο "Offers"
     df_o = safe_read("Offers")
-    if df_o.empty:
-        # Αν είναι άδειο, δοκιμάζουμε το όνομα "Προσφορές" στα ελληνικά
-        df_o = safe_read("Προσφορές")
-        
     if not df_o.empty:
         st.dataframe(df_o, use_container_width=True)
     else:
-        st.info("Δεν βρέθηκαν δεδομένα. Βεβαιωθείτε ότι το φύλλο στο Google Sheets ονομάζεται 'Offers'.")
+        st.info("Δεν βρέθηκαν δεδομένα στις Προσφορές.")
 
 # 5. ΔΑΝΕΙΟΔΟΤΗΣΗ
 with tabs[4]:
@@ -132,6 +120,25 @@ with tabs[4]:
     if not df_l.empty:
         st.metric("Υπόλοιπο Δανείου", f"{df_l['Υπόλοιπο Δανείου'].iloc[-1]:,.2f} €")
         st.dataframe(df_l, use_container_width=True)
+
+# 6. ΛΙΣΤΑ ΕΞΟΔΩΝ (ΝΕΑ ΚΑΤΗΓΟΡΙΑ)
+with tabs[5]:
+    st.subheader("📝 Αναλυτικό Ιστορικό Εξόδων")
+    df_list = safe_read("Expenses")
+    if not df_list.empty:
+        # Καθαρισμός στηλών
+        df_list.columns = df_list.columns.str.strip()
+        
+        st.write("💡 *Κάντε κλικ στις επικεφαλίδες των στηλών για ταξινόμηση.*")
+        
+        # Χρήση st.dataframe για διαδραστικότητα (sorting/filtering)
+        st.dataframe(
+            df_list, 
+            use_container_width=True,
+            column_order=("Ημερομηνία", "Κατηγορία", "Είδος", "Περιγραφή", "Ποσό", "Πληρωτής")
+        )
+    else:
+        st.info("Η λίστα είναι κενή.")
     df_l = safe_read("Loan")
     if not df_l.empty:
         st.metric("Υπόλοιπο Δανείου", f"{df_l['Υπόλοιπο Δανείου'].iloc[-1]:,.2f} €")
