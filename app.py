@@ -71,18 +71,55 @@ with tabs[1]:
                 conn.update(worksheet="Contacts", data=pd.concat([df_con, new_c], ignore_index=True))
                 st.rerun()
 
-# 3. ΠΡΟΟΔΟΣ
+# ---------------------------------------------------------
+# 3. ΕΝΟΤΗΤΑ ΠΡΟΟΔΟΥ (Με Μπάρες & Ποσοστά)
+# ---------------------------------------------------------
 with tabs[2]:
-    st.subheader("📦 Εξέλιξη Εργασιών")
+    st.subheader("📦 Παρακολούθηση & Εξέλιξη Εργασιών")
     df_p = safe_read("Progress")
+    
     if not df_p.empty:
+        # Συνολική Πρόοδος Έργου
+        total_tasks = len(df_p)
+        done_tasks = len(df_p[df_p['Κατάσταση'] == "Ολοκληρώθηκε"])
+        total_progress = done_tasks / total_tasks if total_tasks > 0 else 0
+        
+        st.write(f"### Συνολική Ολοκλήρωση: {total_progress*100:.0f}%")
+        st.progress(total_progress)
+        st.divider()
+
+        # Λίστα Εργασιών με Μπάρες
         for i, r in df_p.iterrows():
-            c1, c2 = st.columns([4, 1])
-            c1.write(f"{'✅' if r['Κατάσταση']=='Ολοκληρώθηκε' else '⏳'} {r['Εργασία']}")
-            if c2.button("Αλλαγή", key=f"p_{i}"):
-                df_p.at[i, 'Κατάσταση'] = "Ολοκληρώθηκε" if r['Κατάσταση'] != "Ολοκληρώθηκε" else "Εκκρεμεί"
-                conn.update(worksheet="Progress", data=df_p)
-                st.rerun()
+            col_text, col_btn = st.columns([3, 1])
+            
+            with col_text:
+                st.write(f"**{r['Εργασία']}**")
+                # Μπάρα για την συγκεκριμένη εργασία
+                status_val = 1.0 if r['Κατάσταση'] == "Ολοκληρώθηκε" else 0.0
+                st.progress(status_val)
+            
+            with col_btn:
+                # Κουμπί εναλλαγής κατάστασης
+                label = "✅ Τέλος" if r['Κατάσταση'] != "Ολοκληρώθηκε" else "🔄 Επαναφορά"
+                if st.button(label, key=f"btn_p_{i}"):
+                    new_status = "Ολοκληρώθηκε" if r['Κατάσταση'] != "Ολοκληρώθηκε" else "Εκκρεμεί"
+                    df_p.at[i, 'Κατάσταση'] = new_status
+                    conn.update(worksheet="Progress", data=df_p)
+                    st.rerun()
+            st.write("") # Κενό ανάμεσα στις εργασίες
+    else:
+        st.info("Η λίστα εργασιών είναι κενή στο Google Sheets (Φύλλο: Progress).")
+
+    with st.expander("➕ Προσθήκη Νέας Εγκεκριμένης Εργασίας"):
+        with st.form("add_task_form", clear_on_submit=True):
+            new_t = st.text_input("Περιγραφή Εργασίας")
+            if st.form_submit_button("Προσθήκη στη Λίστα"):
+                if new_t:
+                    new_row = pd.DataFrame([{"Εργασία": new_t, "Κατάσταση": "Εκκρεμεί"}])
+                    updated_p = pd.concat([df_p, new_row], ignore_index=True)
+                    conn.update(worksheet="Progress", data=updated_p)
+                    st.success("Η εργασία προστέθηκε!")
+                    st.rerun()
 
 # 4. ΠΡΟΣΦΟΡΕΣ
 with tabs[3]:
