@@ -78,11 +78,40 @@ with tabs[1]:
     if not df_c.empty:
         st.dataframe(df_c, use_container_width=True)
 
-# 3. ΠΡΟΟΔΟΣ
+# --- 3. ΠΡΟΟΔΟΣ (Προσθήκη Νέων Εργασιών) ---
 with tabs[2]:
+    st.subheader("📦 Εξέλιξη & Οικονομική Εξόφληση")
     df_p = safe_read("Progress")
     df_e = safe_read("Expenses")
+    
+    # --- ΦΟΡΜΑ ΠΡΟΣΘΗΚΗΣ ΝΕΑΣ ΕΡΓΑΣΙΑΣ ---
+    with st.expander("➕ Προσθήκη Νέας Εργασίας"):
+        with st.form("new_task_form", clear_on_submit=True):
+            nt_name = st.text_input("Όνομα Εργασίας (π.χ. Πλακάκια)")
+            nt_deal = st.number_input("Συνολική Συμφωνημένη Αμοιβή (€)", min_value=0.0)
+            nt_status = st.selectbox("Κατάσταση", ["Εκκρεμεί", "Σε εξέλιξη", "Ολοκληρώθηκε"])
+            
+            if st.form_submit_button("Προσθήκη στο Πρόγραμμα"):
+                if nt_name:
+                    # Δημιουργία νέας γραμμής
+                    new_task = pd.DataFrame([{
+                        "Εργασία": nt_name, 
+                        "Κατάσταση": nt_status, 
+                        "Συνολική Αμοιβή": nt_deal
+                    }])
+                    # Ενημέρωση Google Sheets
+                    updated_p = pd.concat([df_p, new_task], ignore_index=True)
+                    conn.update(worksheet="Progress", data=updated_p)
+                    st.success(f"Η εργασία '{nt_name}' προστέθηκε με επιτυχία!")
+                    st.rerun()
+                else:
+                    st.error("Παρακαλώ συμπληρώστε το όνομα της εργασίας.")
+
+    st.divider()
+
+    # --- ΕΜΦΑΝΙΣΗ ΥΠΑΡΧΟΥΣΩΝ ΕΡΓΑΣΙΩΝ ---
     if not df_p.empty:
+        # Καθαρισμός δεδομένων εξόδων για τη σύνδεση
         if not df_e.empty:
             df_e.columns = df_e.columns.str.strip()
             df_e['Κατηγορία'] = df_e['Κατηγορία'].astype(str).str.strip()
@@ -92,6 +121,8 @@ with tabs[2]:
         for i, r in df_p.iterrows():
             t_name = str(r['Εργασία']).strip()
             p_done = 0
+            
+            # Υπολογισμός πληρωμών αμοιβών
             if not df_e.empty and 'Είδος' in df_e.columns:
                 mask = (df_e['Κατηγορία'] == t_name) & (df_e['Είδος'].isin(["Αμοιβή", "Αμοιβές"]))
                 p_done = df_e[mask]['Ποσό'].sum()
@@ -99,13 +130,24 @@ with tabs[2]:
             total_agr = r['Συνολική Αμοιβή'] if 'Συνολική Αμοιβή' in r else 0
             perc = (p_done / total_agr) if total_agr > 0 else 0
             
+            # Οπτική απεικόνιση
             st.write(f"### {t_name}")
             col_t, col_m = st.columns([3, 1])
-            col_t.progress(min(perc, 1.0))
-            col_t.write(f"💰 Πληρώθηκαν: **{p_done:,.2f} €** / Συμφωνία: {total_agr:,.2f} €")
-            col_m.metric("Εξόφληση", f"{perc*100:.1f}%")
+            with col_t:
+                st.progress(min(perc, 1.0))
+                st.write(f"💰 Πληρώθηκαν: **{p_done:,.2f} €** / Συμφωνία: {total_agr:,.2f} €")
+            with col_m:
+                st.metric("Εξόφληση", f"{perc*100:.1f}%")
+                if r['Κατάσταση'] != "Ολοκληρώθηκε":
+                    if st.button("✅ Ολοκλήρωση", key=f"btn_p_{i}"):
+                        df_p.at[i, 'Κατάσταση'] = "Ολοκληρώθηκε"
+                        conn.update(worksheet="Progress", data=df_p)
+                        st.rerun()
+                else:
+                    st.success("Ολοκληρώθηκε")
             st.divider()
-
+    else:
+        st.info("Η λίστα εργασιών είναι κενή.")
 # 4. ΠΡΟΣΦΟΡΕΣ
 with tabs[3]:
     df_o = safe_read("Offers")
