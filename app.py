@@ -77,32 +77,39 @@ with tabs[0]:
                 st.success("Το έξοδο αποθηκεύτηκε!")
                 st.rerun()
 
-# 2. ΣΥΝΕΡΓΕΙΑ
+# --- 2. ΣΥΝΕΡΓΕΙΑ ---
 with tabs[1]:
     st.subheader("👷 Λίστα Επαφών")
     df_c = safe_read("Contacts")
     if not df_c.empty:
         st.dataframe(df_c, use_container_width=True)
+    else:
+        st.warning("Δεν βρέθηκαν δεδομένα στο φύλλο 'Contacts'.")
 
-# ---------------------------------------------------------
-# 3. ΕΝΟΤΗΤΑ ΠΡΟΟΔΟΥ - ΔΙΟΡΘΩΣΗ ΓΙΑ ΚΕΝΑ ΔΙΑΣΤΗΜΑΤΑ (v5.2)
-# ---------------------------------------------------------
+# --- 3. ΠΡΟΟΔΟΣ (ΔΙΟΡΘΩΜΕΝΟ v5.3) ---
 with tabs[2]:
     st.subheader("📦 Εξέλιξη & Οικονομική Εξόφληση")
     df_p = safe_read("Progress")
     df_e = safe_read("Expenses")
     
-    if not df_e.empty:
-        # Διόρθωση: Καθαρίζουμε τυχόν κενά διαστήματα από τα ονόματα των στηλών
-        df_e.columns = df_e.columns.str.strip()
-    
     if not df_p.empty:
+        # Προετοιμασία δεδομένων εξόδων με ασφάλεια
+        if not df_e.empty:
+            df_e.columns = df_e.columns.str.strip()
+            # Μετατροπή στηλών σε κείμενο για να μην χτυπάει το .str.strip()
+            df_e['Κατηγορία'] = df_e['Κατηγορία'].astype(str).str.strip()
+            if 'Είδος' in df_e.columns:
+                df_e['Είδος'] = df_e['Είδος'].astype(str).str.strip()
+
         for i, r in df_p.iterrows():
             p_done = 0
+            # Ασφαλής καθαρισμός ονόματος εργασίας
+            task_name = str(r['Εργασία']).strip()
+            
             if not df_e.empty and 'Είδος' in df_e.columns:
-                # Φιλτράρισμα με καθαρισμό κενών και στις τιμές των κελιών
-                mask = (df_e['Κατηγορία'].str.strip() == r['Εργασία'].str.strip()) & \
-                       (df_e['Είδος'].str.strip().isin(["Αμοιβή", "Αμοιβές"]))
+                # Φιλτράρισμα αμοιβών
+                mask = (df_e['Κατηγορία'] == task_name) & \
+                       (df_e['Είδος'].isin(["Αμοιβή", "Αμοιβές"]))
                 p_done = df_e[mask]['Ποσό'].sum()
             
             total_agr = r['Συνολική Αμοιβή'] if 'Συνολική Αμοιβή' in r else 0
@@ -110,25 +117,27 @@ with tabs[2]:
             
             col_t, col_m = st.columns([3, 1])
             with col_t:
-                st.write(f"### {r['Εργασία']}")
+                st.write(f"### {task_name}")
                 st.progress(min(perc, 1.0))
                 st.write(f"💰 Πληρώθηκαν: **{p_done:,.2f} €** / Συμφωνία: {total_agr:,.2f} €")
             with col_m:
                 st.metric("Εξόφληση", f"{perc*100:.1f}%")
-                if st.button("✅ Ολοκληρώθηκε", key=f"final_p_btn_{i}"):
+                if st.button("✅ Ολοκληρώθηκε", key=f"p_btn_v53_{i}"):
                     df_p.at[i, 'Κατάσταση'] = "Ολοκληρώθηκε"
                     conn.update(worksheet="Progress", data=df_p)
                     st.rerun()
             st.divider()
     else:
-        st.info("Προσθέστε εργασίες στο φύλλο Progress.")
+        st.info("Προσθέστε εργασίες στο φύλλο 'Progress'.")
 
-# 4. ΠΡΟΣΦΟΡΕΣ
+# --- 4. ΠΡΟΣΦΟΡΕΣ ---
 with tabs[3]:
     st.subheader("💰 Διαχείριση Προσφορών")
     df_o = safe_read("Offers")
     if not df_o.empty:
         st.dataframe(df_o, use_container_width=True)
+    else:
+        st.warning("Δεν βρέθηκαν δεδομένα στο φύλλο 'Offers'.")
 
 # 5. ΔΑΝΕΙΟΔΟΤΗΣΗ
 with tabs[4]:
