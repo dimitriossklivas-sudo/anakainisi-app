@@ -84,17 +84,23 @@ with tabs[1]:
     if not df_c.empty:
         st.dataframe(df_c, use_container_width=True)
 
-# 3. ΠΡΟΟΔΟΣ (Σύνδεση με Πληρωμές Αμοιβών)
+# ---------------------------------------------------------
+# 3. ΕΝΟΤΗΤΑ ΠΡΟΟΔΟΥ - ΔΙΟΡΘΩΣΗ ΓΙΑ ΚΕΝΑ ΔΙΑΣΤΗΜΑΤΑ (v5.2)
+# ---------------------------------------------------------
 with tabs[2]:
     st.subheader("📦 Εξέλιξη & Οικονομική Εξόφληση")
     df_p = safe_read("Progress")
     df_e = safe_read("Expenses")
     
+    if not df_e.empty:
+        # Διόρθωση: Καθαρίζουμε τυχόν κενά διαστήματα από τα ονόματα των στηλών
+        df_e.columns = df_e.columns.str.strip()
+    
     if not df_p.empty:
         for i, r in df_p.iterrows():
-            # Υπολογισμός Πληρωμών (Μόνο όσα είναι "Αμοιβή" ή "Αμοιβές")
             p_done = 0
             if not df_e.empty and 'Είδος' in df_e.columns:
+                # Φιλτράρισμα με καθαρισμό κενών και στις τιμές των κελιών
                 mask = (df_e['Κατηγορία'].str.strip() == r['Εργασία'].str.strip()) & \
                        (df_e['Είδος'].str.strip().isin(["Αμοιβή", "Αμοιβές"]))
                 p_done = df_e[mask]['Ποσό'].sum()
@@ -109,11 +115,13 @@ with tabs[2]:
                 st.write(f"💰 Πληρώθηκαν: **{p_done:,.2f} €** / Συμφωνία: {total_agr:,.2f} €")
             with col_m:
                 st.metric("Εξόφληση", f"{perc*100:.1f}%")
-                if st.button("✅ Ολοκληρώθηκε", key=f"p_btn_{i}"):
+                if st.button("✅ Ολοκληρώθηκε", key=f"final_p_btn_{i}"):
                     df_p.at[i, 'Κατάσταση'] = "Ολοκληρώθηκε"
                     conn.update(worksheet="Progress", data=df_p)
                     st.rerun()
             st.divider()
+    else:
+        st.info("Προσθέστε εργασίες στο φύλλο Progress.")
 
 # 4. ΠΡΟΣΦΟΡΕΣ
 with tabs[3]:
