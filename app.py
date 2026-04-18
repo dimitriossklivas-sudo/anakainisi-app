@@ -101,8 +101,34 @@ with tabs[0]:
 
 # --- TAB 2: ΣΥΝΕΡΓΕΙΑ ---
 with tabs[1]:
+    st.subheader("👷 Διαχείριση Συνεργείων")
     df_c = safe_read("Contacts")
-    if not df_c.empty: st.dataframe(df_c, use_container_width=True)
+    
+    # Φόρμα Εισαγωγής Νέας Επαφής
+    with st.expander("➕ Προσθήκη Νέου Συνεργάτη"):
+        with st.form("new_contact_form", clear_on_submit=True):
+            c_name = st.text_input("Ονοματεπώνυμο / Επωνυμία")
+            c_job = st.text_input("Ειδικότητα (π.χ. Ηλεκτρολόγος)")
+            c_phone = st.text_input("Τηλέφωνο Επικοινωνίας")
+            c_note = st.text_area("Σχόλια (π.χ. Διεύθυνση ή Ωράριο)")
+            
+            if st.form_submit_button("Αποθήκευση Επαφής"):
+                if c_name and c_phone:
+                    new_contact = pd.DataFrame([{
+                        "Όνομα": c_name, 
+                        "Ειδικότητα": c_job, 
+                        "Τηλέφωνο": c_phone, 
+                        "Σημειώσεις": c_note
+                    }])
+                    conn.update(worksheet="Contacts", data=pd.concat([df_c, new_contact], ignore_index=True))
+                    st.toast("Η επαφή αποθηκεύτηκε!", icon="✅")
+                    st.rerun()
+                else:
+                    st.error("Το όνομα και το τηλέφωνο είναι υποχρεωτικά.")
+
+    st.divider()
+    if not df_c.empty:
+        st.dataframe(df_c, use_container_width=True)
 
 # --- TAB 3: ΠΡΟΟΔΟΣ ---
 with tabs[2]:
@@ -135,8 +161,36 @@ with tabs[2]:
 
 # --- TAB 4: ΠΡΟΣΦΟΡΕΣ ---
 with tabs[3]:
+    st.subheader("💰 Διαχείριση Προσφορών")
     df_o = safe_read("Offers")
-    if not df_o.empty: st.dataframe(df_o, use_container_width=True)
+    
+    # Φόρμα Εισαγωγής Νέας Προσφοράς
+    with st.expander("➕ Καταχώρηση Νέας Προσφοράς"):
+        with st.form("new_offer_form", clear_on_submit=True):
+            o_provider = st.text_input("Πάροχος / Κατάστημα")
+            o_desc = st.text_input("Περιγραφή Ειδών (π.χ. Είδη Υγιεινής)")
+            o_amt = st.number_input("Ποσό Προσφοράς (€)", min_value=0.0)
+            o_date = st.date_input("Ημερομηνία Προσφοράς")
+            o_link = st.text_input("Link (Drive/PDF) αν υπάρχει")
+            
+            if st.form_submit_button("Αποθήκευση Προσφοράς"):
+                if o_provider and o_amt > 0:
+                    new_offer = pd.DataFrame([{
+                        "Ημερομηνία": str(o_date),
+                        "Πάροχος": o_provider,
+                        "Περιγραφή": o_desc,
+                        "Ποσό": o_amt,
+                        "Link": o_link
+                    }])
+                    conn.update(worksheet="Offers", data=pd.concat([df_o, new_offer], ignore_index=True))
+                    st.toast("Η προσφορά καταχωρήθηκε!", icon="💰")
+                    st.rerun()
+                else:
+                    st.error("Συμπληρώστε Πάροχο και Ποσό.")
+
+    st.divider()
+    if not df_o.empty:
+        st.dataframe(df_o, use_container_width=True)
 
 # --- TAB 5: ΔΑΝΕΙΟ ---
 with tabs[4]:
