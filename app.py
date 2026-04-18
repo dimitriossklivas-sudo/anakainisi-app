@@ -28,8 +28,7 @@ def safe_read(sheet_name):
     except:
         return pd.DataFrame()
 
-# --- ΔΗΜΙΟΥΡΓΙΑ TABS (Προσθήκη 6ης κατηγορίας) ---
-tabs = st.tabs(["📊 Έξοδα & Στατιστικά", "👷 Συνεργεία", "📦 Πρόοδος", "💰 Προσφορές", "🏦 Δανειοδότηση", "📝 Λίστα Εξόδων"])
+tabs = st.tabs(["📊 Έξοδα", "👷 Συνεργεία", "📦 Πρόοδος", "💰 Προσφορές", "🏦 Δανειοδότηση", "📝 Λίστα Εξόδων", "📐 Υπολογιστής Υλικών"])
 
 # 1. ΕΞΟΔΑ & ΣΤΑΤΙΣΤΙΚΑ
 with tabs[0]:
@@ -185,3 +184,52 @@ with tabs[5]:
     if not df_l.empty:
         st.metric("Υπόλοιπο Δανείου", f"{df_l['Υπόλοιπο Δανείου'].iloc[-1]:,.2f} €")
         st.dataframe(df_l, use_container_width=True)
+
+# --- 7. ΥΠΟΛΟΓΙΣΤΗΣ ΥΛΙΚΩΝ (ΝΕΟ ΤΑΒ) ---
+with tabs[6]: # Βεβαιώσου ότι έχεις προσθέσει το όνομα στο st.tabs() παραπάνω
+    st.subheader("📐 Έξυπνος Υπολογιστής Υλικών")
+    
+    calc_type = st.selectbox("Επιλέξτε τι θέλετε να υπολογίσετε:", 
+                             ["Πλακάκια & Δάπεδα", "Χρώματα & Βάψιμο", "Υλικά Γεμίσματος (Τσιμέντο/Άμμος)"])
+    
+    st.divider()
+    
+    if calc_type == "Πλακάκια & Δάπεδα":
+        col1, col2 = st.columns(2)
+        with col1:
+            area = st.number_input("Επιφάνεια προς κάλυψη (m²)", min_value=0.0, value=20.0)
+            waste = st.slider("Ποσοστό Φύρας (για κοψίματα %)", 0, 20, 10)
+        with col2:
+            box_m2 = st.number_input("Τετραγωνικά ανά κουτί (m²/box)", min_value=0.1, value=1.44)
+        
+        total_m2 = area * (1 + waste/100)
+        boxes_needed = total_m2 / box_m2
+        
+        st.info(f"📍 Θα χρειαστείτε συνολικά **{total_m2:.2f} m²** υλικού.")
+        st.success(f"📦 Παραγγελία: **{int(boxes_needed) + (boxes_needed % 1 > 0)} Κουτιά**")
+
+    elif calc_type == "Χρώματα & Βάψιμο":
+        col1, col2 = st.columns(2)
+        with col1:
+            wall_area = st.number_input("Συνολική επιφάνεια τοίχων (m²)", min_value=0.0, value=50.0)
+            hands = st.radio("Πόσα χέρια βάψιμο;", [1, 2, 3], index=1)
+        with col2:
+            coverage = st.number_input("Απόδοση χρώματος (m²/λίτρο)", min_value=1.0, value=12.0)
+        
+        total_liters = (wall_area * hands) / coverage
+        st.info(f"🎨 Συνολική επιφάνεια προς κάλυψη (με τα χέρια): **{wall_area * hands:.2f} m²**")
+        st.success(f"🛢️ Θα χρειαστείτε περίπου **{total_liters:.1f} Λίτρα** χρώματος.")
+
+    elif calc_type == "Υλικά Γεμίσματος (Τσιμέντο/Άμμος)":
+        st.write("Υπολογισμός για γέμισμα δαπέδου (αναλογία 1:4)")
+        col1, col2 = st.columns(2)
+        with col1:
+            floor_m2 = st.number_input("Επιφάνεια δαπέδου (m²)", min_value=0.0, value=30.0)
+            thickness = st.number_input("Πάχος γεμίσματος (εκατοστά - cm)", min_value=1.0, value=5.0)
+        
+        volume = floor_m2 * (thickness / 100) # κυβικά μέτρα
+        cement_bags = volume * 6 # κατά προσέγγιση 6 τσουβάλια ανά m3 για απλό γέμισμα
+        sand_m3 = volume * 0.9
+        
+        st.info(f"🏗️ Συνολικός όγκος: **{volume:.2f} m³**")
+        st.success(f"🧱 Θα χρειαστείτε περίπου **{int(cement_bags)} τσουβάλια τσιμέντο** (25kg) και **{sand_m3:.2f} m³ άμμο**.")
