@@ -2,31 +2,55 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import plotly.express as px
-import os
 
-# --- ΡΥΘΜΙΣΕΙΣ ΣΕΛΙΔΑΣ ---
-st.set_page_config(page_title="Σκλίβας Δημήτριος | v4.6", layout="wide", page_icon="🏠")
+# 1. Ρυθμίσεις Σελίδας & Design
+st.set_page_config(page_title="Σκλίβας Δημήτριος | Pro", layout="wide")
 
-# --- ΕΜΦΑΝΙΣΗ LOGO ---
-logo_files = ["logo.png", "Logo.png", "logo.jpg"]
-found_logo = False
-for f in logo_files:
-    if os.path.exists(f):
-        st.image(f, width=200)
-        found_logo = True
-        break
-if not found_logo:
-    st.markdown("<h1 style='color: #D4AF37;'>ΣΚΛΙΒΑΣ ΔΗΜΗΤΡΙΟΣ</h1>", unsafe_allow_html=True)
+# Custom CSS για ομορφιά
+st.markdown("""
+    <style>
+    /* Φόντο και Γραμματοσειρές */
+    .main { background-color: #f8f9fa; }
+    
+    /* Στυλ για τα Tabs */
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
+    .stTabs [data-baseweb="tab"] {
+        height: 60px;
+        background-color: #ffffff;
+        border-radius: 12px 12px 0px 0px;
+        padding: 10px 20px;
+        font-weight: 600;
+        color: #495057;
+        border: 1px solid #e9ecef;
+        transition: all 0.3s;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #D4AF37 !important;
+        color: white !important;
+        border-color: #D4AF37 !important;
+        box-shadow: 0px 4px 12px rgba(212, 175, 55, 0.3);
+    }
+    
+    /* Κάρτες Metrics */
+    div[data-testid="stMetric"] {
+        background-color: #ffffff;
+        padding: 15px;
+        border-radius: 15px;
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.05);
+        border-left: 5px solid #D4AF37;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-# --- ΣΥΝΔΕΣΗ ΜΕ GOOGLE SHEETS ---
+# Τίτλος με Στυλ
+st.markdown("<h1 style='text-align: center; color: #D4AF37; font-size: 45px; text-shadow: 2px 2px 4px #eeeeee;'>👑 ΣΚΛΙΒΑΣ ΔΗΜΗΤΡΙΟΣ</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #6c757d; font-size: 18px;'>Διαχείριση Ανακαίνισης • Premium Dashboard</p>", unsafe_allow_html=True)
+
+# Σύνδεση & Helper Functions
 conn = st.connection("gsheets", type=GSheetsConnection)
-
-# Συναρτήση για ασφαλή ανάγνωση
 def safe_read(sheet_name):
-    try:
-        return conn.read(worksheet=sheet_name, ttl="0")
-    except:
-        return pd.DataFrame()
+    try: return conn.read(worksheet=sheet_name, ttl="0")
+    except: return pd.DataFrame()
 
 # Αντικατάστησε τη γραμμή των tabs με αυτή:
 tabs = st.tabs([
