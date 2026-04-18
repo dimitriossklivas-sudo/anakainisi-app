@@ -178,17 +178,48 @@ with tabs[5]:
         st.write("💡 Κάντε κλικ στις κεφαλίδες για ταξινόμηση")
         st.dataframe(df_list, use_container_width=True)
 
-# --- TAB 7: CALCULATOR ---
+# --- TAB 7: CALCULATOR (ΑΝΑΒΑΘΜΙΣΜΕΝΟΣ) ---
 with tabs[6]:
-    st.subheader("📐 Υπολογιστής Υλικών")
-    c_type = st.radio("Τι θα μετρήσουμε;", ["Πλακάκια", "Χρώματα"], horizontal=True)
-    if c_type == "Πλακάκια":
-        m2 = st.number_input("Τετραγωνικά (m²)", value=20.0)
-        box = st.number_input("m² ανά κουτί", value=1.44)
-        st.success(f"Χρειάζεστε: {int((m2*1.1)/box)+1} Κουτιά (με 10% φύρα)")
+    st.subheader("📐 Εξειδικευμένος Υπολογιστής Πλακιδίων")
+    
+    calc_mode = st.radio("Επιλέξτε υπολογισμό:", ["Πλακάκια", "Χρώματα"], horizontal=True)
+    
+    if calc_mode == "Πλακάκια":
+        col_dim, col_area = st.columns(2)
+        
+        with col_dim:
+            st.write("--- **Διαστάσεις Πλακακιού** ---")
+            p_width = st.number_input("Πλάτος πλακακιού (cm)", min_value=1.0, value=60.0)
+            p_height = st.number_input("Ύψος πλακακιού (cm)", min_value=1.0, value=120.0)
+            box_pieces = st.number_input("Τεμάχια ανά κουτί", min_value=1, value=2)
+            
+        with col_area:
+            st.write("--- **Επιφάνεια Κάλυψης** ---")
+            floor_m2 = st.number_input("Εμβαδόν Πατώματος (m²)", min_value=0.0, value=0.0)
+            walls_m2 = st.number_input("Εμβαδόν Τοίχων (m²)", min_value=0.0, value=0.0)
+            waste_perc = st.slider("Ποσοστό Φύρας (%)", 0, 20, 10)
+
+        # Υπολογισμοί
+        tile_area_m2 = (p_width * p_height) / 10000  # Μετατροπή cm2 σε m2
+        total_m2_needed = (floor_m2 + walls_m2) * (1 + waste_perc/100)
+        
+        total_tiles = total_m2_needed / tile_area_m2
+        total_boxes = total_tiles / box_pieces
+
+        st.divider()
+        
+        # Αποτελέσματα
+        res1, res2, res3 = st.columns(3)
+        res1.metric("Συνολικά m²", f"{total_m2_needed:.2f}")
+        res2.metric("Τεμάχια Πλακάκια", f"{int(total_tiles) + 1}")
+        res3.metric("Κουτιά Παραγγελίας", f"{int(total_boxes) + (total_boxes % 1 > 0)}")
+        
+        st.info(f"💡 Ένα πλακάκι {p_width:.0f}x{p_height:.0f} καλύπτει {tile_area_m2:.3f} m²")
+
     else:
-        m2 = st.number_input("m² επιφάνειας τοίχου", value=50.0)
-        st.success(f"Χρειάζεστε: {(m2*2)/12:.1f} Λίτρα (για 2 χέρια)")
+        # Ο κώδικας για τα χρώματα παραμένει ως είχε
+        m2_paint = st.number_input("m² επιφάνειας τοίχου", value=50.0)
+        st.success(f"Χρειάζεστε: {(m2_paint * 2) / 12:.1f} Λίτρα (για 2 χέρια)")
 
 # --- TAB 8: ΑΡΧΕΙΑ ---
 with tabs[7]:
