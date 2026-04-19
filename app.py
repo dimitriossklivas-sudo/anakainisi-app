@@ -266,34 +266,23 @@ with tabs[5]:
         )
     else:
         st.info("Δεν υπάρχουν δεδομένα εξόδων για εμφάνιση.")
-# --- TAB 7: CALCULATOR (ΔΙΟΡΘΩΜΕΝΟ) ---
-with tabs[6]:
-    st.subheader("📐 Υπολογιστής Υλικών")
-    mode = st.radio("Επιλογή:", ["Πλακάκια", "Γεμίσματα", "Χρώματα"], horizontal=True)
-    
-    if mode == "Πλακάκια":
-        w = st.number_input("Πλάτος (cm)", value=60.0)
-        h = st.number_input("Ύψος (cm)", value=120.0)
-        m2 = st.number_input("m² Επιφάνειας", value=10.0)
-        tile_m2 = (w * h) / 10000
-        st.metric("Τεμάχια που χρειάζονται", int(m2/tile_m2)+1)
-        
-    elif mode == "Γεμίσματα":
+elif mode == "Γεμίσματα":
         area = st.number_input("m² Δαπέδου", value=10.0)
         thick = st.number_input("Πάχος (cm)", value=5.0)
         vol = area * (thick / 100)
-        # Υπολογισμός Άμμου & Τσιμέντου
-        cem = vol * 6.5
-        sand_m3 = vol * 0.9
-        res1, res2 = st.columns(2)
+        
+        # Υπολογισμοί (Αναλογία 1:4)
+        cem = vol * 6.5           # ~6.5 σάκοι των 25kg ανά m3
+        sand_m3 = vol * 0.9       # ~0.9 m3 άμμος ανά m3 μείγματος
+        sand_tons = sand_m3 * 1.6 # 1 m3 άμμου = ~1.6 τόνοι
+        
+        st.write("### 🏗️ Υλικά για Παραγγελία")
+        res1, res2, res3 = st.columns(3)
         res1.metric("Τσιμέντο (25kg)", f"{int(cem)+1} σάκοι")
         res2.metric("Άμμος (m³)", f"{sand_m3:.2f} m³")
-        st.info(f"💡 Περίπου {int(sand_m3/0.8)+1} Big Bags άμμου.")
-
-    elif mode == "Χρώματα":
-        p_m2 = st.number_input("m² Τοίχου", value=50.0)
-        st.success(f"🎨 Χρειάζεστε περίπου: {(p_m2 * 2) / 12:.1f} Λίτρα")
-
+        res3.metric("Άμμος (Τόνοι)", f"{sand_tons:.1f} t")
+        
+        st.info(f"💡 Συμβουλή: Θα χρειαστείτε περίπου {int(sand_m3/0.8)+1} Big Bags άμμου.")
 # --- TAB 8: ΑΡΧΕΙΑ ---
 with tabs[7]:
     st.subheader("📁 Αρχεία")
