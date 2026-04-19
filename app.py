@@ -178,7 +178,7 @@ with tabs[5]:
         st.write("💡 Κάντε κλικ στις κεφαλίδες για ταξινόμηση")
         st.dataframe(df_list, use_container_width=True)
 
-# --- TAB 7: CALCULATOR (ΠΛΗΡΗΣ ΕΚΔΟΣΗ v6.6) ---
+# --- TAB 7: CALCULATOR ---
 with tabs[6]:
     st.subheader("📐 Επαγγελματικός Υπολογιστής Υλικών")
     
@@ -204,13 +204,13 @@ with tabs[6]:
 
         tile_area_m2 = (p_width * p_height) / 10000
         total_m2_needed = (floor_m2 + walls_m2) * (1 + waste_perc/100)
-        total_tiles = total_m2_needed / tile_area_m2
-        total_boxes = total_tiles / box_pieces
+        total_tiles = total_m2_needed / tile_area_m2 if tile_area_m2 > 0 else 0
+        total_boxes = total_tiles / box_pieces if box_pieces > 0 else 0
 
         r1, r2, r3 = st.columns(3)
         r1.metric("Συνολικά m²", f"{total_m2_needed:.2f}")
         r2.metric("Τεμάχια", f"{int(total_tiles) + 1}")
-        r3.metric("Κουτιά", f"{int(total_boxes) + (total_boxes % 1 > 0)}")
+        r3.metric("Κουτιά", f"{int(total_boxes) + (1 if total_boxes % 1 > 0 else 0)}")
 
     elif calc_mode == "Δομικά Υλικά (Γεμίσματα/Σοβάς)":
         type_mat = st.selectbox("Τύπος Εργασίας:", ["Γέμισμα Δαπέδου (Τσιμεντοκονία)", "Σοβάς (Ψιλός/Έτοιμος)"])
@@ -219,31 +219,27 @@ with tabs[6]:
         with c1:
             m2_work = st.number_input("Επιφάνεια (m²)", min_value=0.0, value=10.0)
         with c2:
-            thickness = st.number_input("Πάχος Στρώσης (εκατοστά - cm)", min_value=0.5, value=5.0 if "Γέμισμα" in type_mat else 1.0)
+            thickness = st.number_input("Πάχος Στρώσης (cm)", min_value=0.5, value=5.0 if "Γέμισμα" in type_mat else 1.0)
 
         volume_m3 = m2_work * (thickness / 100)
         
         if "Γέμισμα" in type_mat:
-            # Αναλογία 1:4 (Τσιμέντο:Άμμος)
-            cement_bags = volume_m3 * 6.5 # ~6.5 τσουβάλια (25kg) ανά κυβικό
-            sand_m3 = volume_m3 * 0.9     # ~0.9 m3 άμμος ανά κυβικό μείγματος
+            cement_bags = volume_m3 * 6.5 
+            sand_m3 = volume_m3 * 0.9     
             
             res_a, res_b = st.columns(2)
             res_a.metric("Τσιμέντο (25kg)", f"{int(cement_bags) + 1} τσουβάλια")
             res_b.metric("Άμμος (m³)", f"{sand_m3:.2f} κυβικά")
-            st.info(f"💡 Συνολικός όγκος μείγματος: {volume_m3:.2f} m³")
         else:
-            # Έτοιμος σοβάς (περίπου 15kg ανά m2 για 1cm πάχος)
             bags_ready = (m2_work * thickness * 15) / 25
             st.metric("Έτοιμος Σοβάς (25kg)", f"{int(bags_ready) + 1} τσουβάλια")
-            st.info("💡 Η εκτίμηση βασίζεται σε κατανάλωση 1.5kg/m² ανά χιλιοστό πάχους.")
 
     elif calc_mode == "Χρώματα":
         m2_paint = st.number_input("m² επιφάνειας τοίχου", value=50.0)
         hands = st.slider("Πόσα χέρια;", 1, 3, 2)
         total_liters = (m2_paint * hands) / 12
-        st.success(f"🎨 Θα χρειαστείτε περίπου: {total_liters:.1f} Λίτρα")χέρια)")
-
+        # Εδώ ήταν το λάθος - Διορθωμένο:
+        st.success(f"🎨 Θα χρειαστείτε περίπου: {total_liters:.1f} Λίτρα")
 # --- TAB 8: ΑΡΧΕΙΑ ---
 with tabs[7]:
     st.subheader
