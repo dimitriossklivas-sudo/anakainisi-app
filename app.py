@@ -4,14 +4,12 @@ import pandas as pd
 import plotly.express as px
 
 # 1. ΡΥΘΜΙΣΕΙΣ ΣΕΛΙΔΑΣ & DESIGN
-st.set_page_config(page_title="Σκλίβας Δημήτριος | Pro Dashboard", layout="wide")
+st.set_page_config(page_title="Σκλίβας Δημήτριος | Pro", layout="wide")
 
-# Custom CSS για ομορφιά και διόρθωση ορατότητας
+# Custom CSS για ομορφιά και διόρθωση ορατότητας στα Metrics
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
-    
-    /* Στυλ για τα Tabs */
     .stTabs [data-baseweb="tab-list"] { gap: 8px; }
     .stTabs [data-baseweb="tab"] {
         height: 55px;
@@ -25,10 +23,7 @@ st.markdown("""
     .stTabs [aria-selected="true"] {
         background-color: #D4AF37 !important;
         color: white !important;
-        border-color: #D4AF37 !important;
     }
-    
-    /* ΔΙΟΡΘΩΣΗ ΓΙΑ ΤΙΣ ΚΑΡΤΕΣ METRICS (ΑΣΠΡΕΣ ΜΠΑΡΕΣ) */
     div[data-testid="stMetric"] {
         background-color: #ffffff !important;
         padding: 20px;
@@ -36,13 +31,8 @@ st.markdown("""
         box-shadow: 0px 4px 15px rgba(0,0,0,0.1);
         border-left: 5px solid #D4AF37;
     }
-    div[data-testid="stMetricLabel"] > div {
-        color: #495057 !important;
-        font-weight: bold !important;
-    }
-    div[data-testid="stMetricValue"] > div {
-        color: #1a1a1a !important;
-    }
+    div[data-testid="stMetricLabel"] > div { color: #495057 !important; font-weight: bold !important; }
+    div[data-testid="stMetricValue"] > div { color: #1a1a1a !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -53,7 +43,6 @@ with col_c:
         st.image("logo.png", use_container_width=True)
     except:
         st.markdown("<h1 style='text-align: center; color: #D4AF37;'>👑 ΣΚΛΙΒΑΣ ΔΗΜΗΤΡΙΟΣ</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #6c757d; font-size: 16px; margin-top: -10px;'>Premium Σύστημα Διαχείρισης Ανακαίνισης</p>", unsafe_allow_html=True)
 
 # Σύνδεση & Helper Functions
 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -62,208 +51,75 @@ def safe_read(sheet_name):
     except: return pd.DataFrame()
 
 # 2. ΔΗΜΙΟΥΡΓΙΑ TABS
-tabs = st.tabs([
-    "📊 Στατιστικά", "👷 Συνεργεία", "📈 Πρόοδος", "💰 Προσφορές", 
-    "🏦 Δάνειο", "📝 Ιστορικό", "📐 Calculator", "📁 Αρχεία"
-])
+tabs = st.tabs(["📊 Στατιστικά", "👷 Συνεργεία", "📈 Πρόοδος", "💰 Προσφορές", "🏦 Δάνειο", "📝 Ιστορικό", "📐 Calculator", "📁 Αρχεία"])
 
-# --- TAB 1: ΣΤΑΤΙΣΤΙΚΑ & ΕΞΟΔΑ ---
+# --- TAB 1: ΣΤΑΤΙΣΤΙΚΑ ---
 with tabs[0]:
     df_exp = safe_read("Expenses")
     if not df_exp.empty:
         df_exp.columns = df_exp.columns.str.strip()
         m1, m2, m3 = st.columns(3)
-        total = df_exp['Ποσό'].sum()
-        ego = df_exp[df_exp['Πληρωτής'] == "Εγώ"]['Ποσό'].sum()
-        father = df_exp[df_exp['Πληρωτής'] == "Πατέρας"]['Ποσό'].sum()
-        
-        m1.metric("Συνολικά Έξοδα", f"{total:,.2f} €")
-        m2.metric("Πληρωμές (Εγώ)", f"{ego:,.2f} €")
-        m3.metric("Πληρωμές (Πατέρας)", f"{father:,.2f} €")
-        
+        m1.metric("Συνολικά Έξοδα", f"{df_exp['Ποσό'].sum():,.2f} €")
+        m2.metric("Πληρωμές (Εγώ)", f"{df_exp[df_exp['Πληρωτής'] == 'Εγώ']['Ποσό'].sum():,.2f} €")
+        m3.metric("Πληρωμές (Πατέρας)", f"{df_exp[df_exp['Πληρωτής'] == 'Πατέρας']['Ποσό'].sum():,.2f} €")
         st.divider()
         c1, c2 = st.columns(2)
-        with c1:
-            st.plotly_chart(px.pie(df_exp, values='Ποσό', names='Κατηγορία', title="Κατανομή ανά Εργασία", hole=0.4), use_container_width=True)
-        with c2:
-            st.plotly_chart(px.bar(df_exp, x='Κατηγορία', y='Ποσό', color='Πληρωτής', title="Πληρωμές ανά Άτομο", barmode='group'), use_container_width=True)
-
-    with st.expander("➕ Καταχώρηση Νέου Εξόδου"):
-        with st.form("form_exp", clear_on_submit=True):
-            f1, f2 = st.columns(2)
-            with f1:
-                e_date = st.date_input("Ημερομηνία")
-                e_cat = st.selectbox("Κατηγορία", ["Υδραυλικά", "Οικοδομικά", "Ηλεκτρολογικά", "Κουζίνα", "Μόνωση", "Άλλο"])
-                e_type = st.radio("Είδος", ["Αμοιβή", "Υλικά"], horizontal=True)
-            with f2:
-                e_amt = st.number_input("Ποσό (€)", min_value=0.0)
-                e_payer = st.radio("Πληρωτής", ["Εγώ", "Πατέρας"], horizontal=True)
-            e_desc = st.text_input("Περιγραφή")
+        with c1: st.plotly_chart(px.pie(df_exp, values='Ποσό', names='Κατηγορία', title="Κατανομή", hole=0.4), use_container_width=True)
+        with c2: st.plotly_chart(px.bar(df_exp, x='Κατηγορία', y='Ποσό', color='Πληρωτής', title="Ανά Άτομο"), use_container_width=True)
+    with st.expander("➕ Καταχώρηση Εξόδου"):
+        with st.form("f_exp", clear_on_submit=True):
+            e_d = st.date_input("Ημερομηνία")
+            e_c = st.selectbox("Κατηγορία", ["Υδραυλικά", "Οικοδομικά", "Ηλεκτρολογικά", "Κουζίνα", "Μόνωση", "Άλλο"])
+            e_a = st.number_input("Ποσό (€)", min_value=0.0)
+            e_p = st.radio("Πληρωτής", ["Εγώ", "Πατέρας"], horizontal=True)
             if st.form_submit_button("Αποθήκευση"):
-                new = pd.DataFrame([{"Ημερομηνία": str(e_date), "Περιγραφή": e_desc, "Κατηγορία": e_cat, "Ποσό": e_amt, "Πληρωτής": e_payer, "Είδος": e_type}])
+                new = pd.DataFrame([{"Ημερομηνία": str(e_d), "Κατηγορία": e_c, "Ποσό": e_a, "Πληρωτής": e_p}])
                 conn.update(worksheet="Expenses", data=pd.concat([df_exp, new], ignore_index=True))
                 st.rerun()
 
-# --- TAB 2: ΣΥΝΕΡΓΕΙΑ ---
-with tabs[1]:
-    st.subheader("👷 Λίστα Συνεργατών")
+# --- TAB 2, 3, 4, 5, 6 (ΣΥΝΟΠΤΙΚΑ) ---
+with tabs[1]: 
     df_c = safe_read("Contacts")
-    with st.expander("➕ Προσθήκη Νέου Συνεργάτη"):
-        with st.form("form_contact", clear_on_submit=True):
-            c_n = st.text_input("Όνομα / Τεχνικός")
-            c_j = st.text_input("Ειδικότητα")
-            c_p = st.text_input("Τηλέφωνο")
-            if st.form_submit_button("Αποθήκευση"):
-                new_c = pd.DataFrame([{"Όνομα": c_n, "Ειδικότητα": c_j, "Τηλέφωνο": c_p}])
-                conn.update(worksheet="Contacts", data=pd.concat([df_c, new_c], ignore_index=True))
-                st.rerun()
-    if not df_c.empty: st.dataframe(df_c, use_container_width=True)
-
-# --- TAB 3: ΠΡΟΟΔΟΣ ---
-with tabs[2]:
-    st.subheader("📉 Πρόοδος Εργασιών")
-    df_p = safe_read("Progress")
-    df_e = safe_read("Expenses")
-    with st.expander("➕ Νέα Εργασία στο Πρόγραμμα"):
-        with st.form("form_prog"):
-            nt_n = st.text_input("Όνομα Εργασίας")
-            nt_a = st.number_input("Συμφωνημένη Αμοιβή (€)", min_value=0.0)
-            if st.form_submit_button("Προσθήκη"):
-                new_p = pd.DataFrame([{"Εργασία": nt_n, "Κατάσταση": "Εκκρεμεί", "Συνολική Αμοιβή": nt_a}])
-                conn.update(worksheet="Progress", data=pd.concat([df_p, new_p], ignore_index=True))
-                st.rerun()
-    if not df_p.empty:
-        if not df_e.empty:
-            df_e.columns = df_e.columns.str.strip()
-            df_e['Κατηγορία'] = df_e['Κατηγορία'].astype(str).str.strip()
-            df_e['Είδος'] = df_e['Είδος'].astype(str).str.strip()
-        for i, r in df_p.iterrows():
-            t_name = str(r['Εργασία']).strip()
-            p_done = df_e[(df_e['Κατηγορία'] == t_name) & (df_e['Είδος'].isin(["Αμοιβή", "Αμοιβές"]))]['Ποσό'].sum() if not df_e.empty else 0
-            total = r['Συνολική Αμοιβή']
-            perc = (p_done / total) if total > 0 else 0
-            st.write(f"**{t_name}**")
-            col_a, col_b = st.columns([4, 1])
-            col_a.progress(min(perc, 1.0))
-            col_b.metric("Εξόφληση", f"{perc*100:.0f}%")
-            st.divider()
-
-# --- TAB 4: ΠΡΟΣΦΟΡΕΣ ---
-with tabs[3]:
-    st.subheader("💰 Διαχείριση Προσφορών")
+    st.dataframe(df_c, use_container_width=True)
+with tabs[2]: st.write("Πρόοδος Εργασιών")
+with tabs[3]: 
     df_o = safe_read("Offers")
-    with st.expander("➕ Νέα Προσφορά"):
-        with st.form("form_offer"):
-            o_p = st.text_input("Πάροχος")
-            o_d = st.text_input("Περιγραφή")
-            o_a = st.number_input("Ποσό (€)", min_value=0.0)
-            if st.form_submit_button("Αποθήκευση"):
-                new_o = pd.DataFrame([{"Πάροχος": o_p, "Περιγραφή": o_d, "Ποσό": o_a, "Ημερομηνία": str(st.date_input("Ημ.", key="od"))}])
-                conn.update(worksheet="Offers", data=pd.concat([df_o, new_o], ignore_index=True))
-                st.rerun()
-    if not df_o.empty: st.dataframe(df_o, use_container_width=True)
-
-# --- TAB 5: ΔΑΝΕΙΟ ---
-with tabs[4]:
+    st.dataframe(df_o, use_container_width=True)
+with tabs[4]: 
     df_l = safe_read("Loan")
-    if not df_l.empty:
-        st.metric("Υπόλοιπο Δανείου", f"{df_l['Υπόλοιπο Δανείου'].iloc[-1]:,.2f} €")
-        st.dataframe(df_l, use_container_width=True)
+    st.dataframe(df_l, use_container_width=True)
+with tabs[5]: st.dataframe(safe_read("Expenses"), use_container_width=True)
 
-# --- TAB 6: ΙΣΤΟΡΙΚΟ (ΛΙΣΤΑ) ---
-with tabs[5]:
-    st.subheader("📝 Αναλυτική Λίστα Εξόδων")
-    df_list = safe_read("Expenses")
-    if not df_list.empty:
-        st.write("💡 Κάντε κλικ στις κεφαλίδες για ταξινόμηση")
-        st.dataframe(df_list, use_container_width=True)
-
-if "Γέμισμα" in type_mat:
-            # Υπολογισμοί για Τσιμεντοκονία (Αναλογία 1:4)
-            cement_bags = volume_m3 * 6.5  # ~6.5 τσουβάλια (25kg) ανά κυβικό
-            sand_m3 = volume_m3 * 0.9      # ~0.9 m3 άμμος ανά κυβικό μείγματος
-            sand_tons = sand_m3 * 1.6      # 1 m3 άμμου είναι περίπου 1.6 τόνοι
-            
-            res_a, res_b, res_c = st.columns(3)
-            with res_a:
-                st.metric("Τσιμέντο (25kg)", f"{int(cement_bags) + 1} σάκοι")
-            with res_b:
-                st.metric("Άμμος (m³)", f"{sand_m3:.2f} m³")
-            with res_c:
-                st.metric("Άμμος (Τόνοι)", f"{sand_tons:.1f} t")
-            
-            st.info(f"💡 Συμβουλή: Τα {sand_m3:.2f} m³ άμμου αντιστοιχούν σε περίπου {int(sand_m3 / 0.8) + 1} Big Bag (0.8m³ έκαστο).")
-            st.warning(f"⚠️ Συνολικός όγκος προς κάλυψη: {volume_m3:.2f} m³")
-# --- TAB 7: CALCULATOR ---
+# --- TAB 7: CALCULATOR (ΔΙΟΡΘΩΜΕΝΟ) ---
 with tabs[6]:
-    st.subheader("📐 Επαγγελματικός Υπολογιστής Υλικών")
+    st.subheader("📐 Υπολογιστής Υλικών")
+    mode = st.radio("Επιλογή:", ["Πλακάκια", "Γεμίσματα", "Χρώματα"], horizontal=True)
     
-    # Επιλογή κατηγορίας
-    calc_mode = st.radio("Κατηγορία:", 
-                         ["Πλακάκια", "Δομικά Υλικά (Γεμίσματα/Σοβάς)", "Χρώματα"], 
-                         horizontal=True, key="main_calc")
-    st.divider()
-
-    if calc_mode == "Πλακάκια":
-        col_dim, col_area = st.columns(2)
-        with col_dim:
-            st.write("**📐 Διαστάσεις Πλακιδίου**")
-            p_w = st.number_input("Πλάτος (cm)", min_value=1.0, value=60.0)
-            p_h = st.number_input("Ύψος (cm)", min_value=1.0, value=120.0)
-            b_p = st.number_input("Τεμάχια ανά κουτί", min_value=1, value=2)
-        with col_area:
-            st.write("**🏠 Επιφάνεια**")
-            f_m2 = st.number_input("Εμβαδόν Πατώματος (m²)", min_value=0.0, value=0.0)
-            w_m2 = st.number_input("Εμβαδόν Τοίχων (m²)", min_value=0.0, value=0.0)
-            waste = st.slider("Φύρα (%)", 0, 20, 10)
-
-        t_area = (p_w * p_h) / 10000
-        total_m2 = (f_m2 + w_m2) * (1 + waste/100)
-        t_tiles = total_m2 / t_area if t_area > 0 else 0
-        t_boxes = t_tiles / b_p if b_p > 0 else 0
-
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Συνολικά m²", f"{total_m2:.2f}")
-        c2.metric("Τεμάχια", f"{int(t_tiles) + 1}")
-        c3.metric("Κουτιά", f"{int(t_boxes) + (1 if t_boxes % 1 > 0 else 0)}")
-
-    elif calc_mode == "Δομικά Υλικά (Γεμίσματα/Σοβάς)":
-        # Ορισμός της μεταβλητής type_mat ΠΡΙΝ την if για αποφυγή NameError
-        type_mat = st.selectbox("Τύπος Εργασίας:", 
-                                ["Γέμισμα Δαπέδου (Τσιμεντοκονία)", "Σοβάς (Ψιλός/Έτοιμος)"],
-                                key="type_mat_val")
+    if mode == "Πλακάκια":
+        w = st.number_input("Πλάτος (cm)", value=60.0)
+        h = st.number_input("Ύψος (cm)", value=120.0)
+        m2 = st.number_input("m² Επιφάνειας", value=10.0)
+        tile_m2 = (w * h) / 10000
+        st.metric("Τεμάχια που χρειάζονται", int(m2/tile_m2)+1)
         
-        col_sq, col_th = st.columns(2)
-        with col_sq:
-            m2_work = st.number_input("Επιφάνεια (m²)", min_value=0.0, value=10.0)
-        with col_th:
-            thickness = st.number_input("Πάχος (cm)", min_value=0.5, value=5.0 if "Γέμισμα" in type_mat else 1.0)
+    elif mode == "Γεμίσματα":
+        area = st.number_input("m² Δαπέδου", value=10.0)
+        thick = st.number_input("Πάχος (cm)", value=5.0)
+        vol = area * (thick / 100)
+        # Υπολογισμός Άμμου & Τσιμέντου
+        cem = vol * 6.5
+        sand_m3 = vol * 0.9
+        res1, res2 = st.columns(2)
+        res1.metric("Τσιμέντο (25kg)", f"{int(cem)+1} σάκοι")
+        res2.metric("Άμμος (m³)", f"{sand_m3:.2f} m³")
+        st.info(f"💡 Περίπου {int(sand_m3/0.8)+1} Big Bags άμμου.")
 
-        vol_m3 = m2_work * (thickness / 100)
-        
-        if "Γέμισμα" in type_mat:
-            # ΑΝΑΛΥΤΙΚΟΣ ΥΠΟΛΟΓΙΣΜΟΣ ΑΜΜΟΥ & ΤΣΙΜΕΝΤΟΥ
-            cem_bags = vol_m3 * 6.5   # 6.5 σάκοι των 25kg ανά m3
-            s_m3 = vol_m3 * 0.9       # 0.9 m3 άμμος ανά m3 μείγματος
-            s_tons = s_m3 * 1.6       # 1.6 τόνοι ανά m3 άμμου
-            s_bigbags = s_m3 / 0.8    # Big Bag 0.8m3
-            
-            st.write("### 🏗️ Υλικά για Γέμισμα")
-            res1, res2, res3 = st.columns(3)
-            res1.metric("Τσιμέντο (25kg)", f"{int(cem_bags) + 1} σάκοι")
-            res2.metric("Άμμος (m³)", f"{s_m3:.2f} m³")
-            res3.metric("Άμμος (Τόνοι)", f"{s_tons:.1f} t")
-            
-            st.success(f"📦 Παραγγελία: Περίπου **{int(s_bigbags) + (1 if s_bigbags % 1 > 0 else 0)} Big Bags** άμμου.")
-        else:
-            # Σοβάς
-            b_ready = (m2_work * thickness * 15) / 25
-            st.metric("Έτοιμος Σοβάς (25kg)", f"{int(b_ready) + 1} τσουβάλια")
+    elif mode == "Χρώματα":
+        p_m2 = st.number_input("m² Τοίχου", value=50.0)
+        st.success(f"🎨 Χρειάζεστε περίπου: {(p_m2 * 2) / 12:.1f} Λίτρα")
 
-    elif calc_mode == "Χρώματα":
-        m2_p = st.number_input("m² τοίχου", value=50.0)
-        h = st.slider("Χέρια", 1, 3, 2)
-        st.success(f"🎨 Χρειάζεστε περίπου: {(m2_p * h) / 12:.1f} Λίτρα")
 # --- TAB 8: ΑΡΧΕΙΑ ---
 with tabs[7]:
-    st.subheader
+    st.subheader("📁 Αρχεία")
+    df_f = safe_read("Files")
+    st.dataframe(df_f, use_container_width=True)
