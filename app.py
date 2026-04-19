@@ -178,48 +178,71 @@ with tabs[5]:
         st.write("💡 Κάντε κλικ στις κεφαλίδες για ταξινόμηση")
         st.dataframe(df_list, use_container_width=True)
 
-# --- TAB 7: CALCULATOR (ΑΝΑΒΑΘΜΙΣΜΕΝΟΣ) ---
+# --- TAB 7: CALCULATOR (ΠΛΗΡΗΣ ΕΚΔΟΣΗ v6.6) ---
 with tabs[6]:
-    st.subheader("📐 Εξειδικευμένος Υπολογιστής Πλακιδίων")
+    st.subheader("📐 Επαγγελματικός Υπολογιστής Υλικών")
     
-    calc_mode = st.radio("Επιλέξτε υπολογισμό:", ["Πλακάκια", "Χρώματα"], horizontal=True)
+    # Επιλογή κατηγορίας υπολογισμού
+    calc_mode = st.radio("Κατηγορία:", 
+                         ["Πλακάκια", "Δομικά Υλικά (Γεμίσματα/Σοβάς)", "Χρώματα"], 
+                         horizontal=True)
     
+    st.divider()
+
     if calc_mode == "Πλακάκια":
         col_dim, col_area = st.columns(2)
-        
         with col_dim:
-            st.write("--- **Διαστάσεις Πλακακιού** ---")
-            p_width = st.number_input("Πλάτος πλακακιού (cm)", min_value=1.0, value=60.0)
-            p_height = st.number_input("Ύψος πλακακιού (cm)", min_value=1.0, value=120.0)
+            st.write("**📐 Διαστάσεις**")
+            p_width = st.number_input("Πλάτος (cm)", min_value=1.0, value=60.0)
+            p_height = st.number_input("Ύψος (cm)", min_value=1.0, value=120.0)
             box_pieces = st.number_input("Τεμάχια ανά κουτί", min_value=1, value=2)
-            
         with col_area:
-            st.write("--- **Επιφάνεια Κάλυψης** ---")
+            st.write("**🏠 Επιφάνεια**")
             floor_m2 = st.number_input("Εμβαδόν Πατώματος (m²)", min_value=0.0, value=0.0)
             walls_m2 = st.number_input("Εμβαδόν Τοίχων (m²)", min_value=0.0, value=0.0)
             waste_perc = st.slider("Ποσοστό Φύρας (%)", 0, 20, 10)
 
-        # Υπολογισμοί
-        tile_area_m2 = (p_width * p_height) / 10000  # Μετατροπή cm2 σε m2
+        tile_area_m2 = (p_width * p_height) / 10000
         total_m2_needed = (floor_m2 + walls_m2) * (1 + waste_perc/100)
-        
         total_tiles = total_m2_needed / tile_area_m2
         total_boxes = total_tiles / box_pieces
 
-        st.divider()
-        
-        # Αποτελέσματα
-        res1, res2, res3 = st.columns(3)
-        res1.metric("Συνολικά m²", f"{total_m2_needed:.2f}")
-        res2.metric("Τεμάχια Πλακάκια", f"{int(total_tiles) + 1}")
-        res3.metric("Κουτιά Παραγγελίας", f"{int(total_boxes) + (total_boxes % 1 > 0)}")
-        
-        st.info(f"💡 Ένα πλακάκι {p_width:.0f}x{p_height:.0f} καλύπτει {tile_area_m2:.3f} m²")
+        r1, r2, r3 = st.columns(3)
+        r1.metric("Συνολικά m²", f"{total_m2_needed:.2f}")
+        r2.metric("Τεμάχια", f"{int(total_tiles) + 1}")
+        r3.metric("Κουτιά", f"{int(total_boxes) + (total_boxes % 1 > 0)}")
 
-    else:
-        # Ο κώδικας για τα χρώματα παραμένει ως είχε
+    elif calc_mode == "Δομικά Υλικά (Γεμίσματα/Σοβάς)":
+        type_mat = st.selectbox("Τύπος Εργασίας:", ["Γέμισμα Δαπέδου (Τσιμεντοκονία)", "Σοβάς (Ψιλός/Έτοιμος)"])
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            m2_work = st.number_input("Επιφάνεια (m²)", min_value=0.0, value=10.0)
+        with c2:
+            thickness = st.number_input("Πάχος Στρώσης (εκατοστά - cm)", min_value=0.5, value=5.0 if "Γέμισμα" in type_mat else 1.0)
+
+        volume_m3 = m2_work * (thickness / 100)
+        
+        if "Γέμισμα" in type_mat:
+            # Αναλογία 1:4 (Τσιμέντο:Άμμος)
+            cement_bags = volume_m3 * 6.5 # ~6.5 τσουβάλια (25kg) ανά κυβικό
+            sand_m3 = volume_m3 * 0.9     # ~0.9 m3 άμμος ανά κυβικό μείγματος
+            
+            res_a, res_b = st.columns(2)
+            res_a.metric("Τσιμέντο (25kg)", f"{int(cement_bags) + 1} τσουβάλια")
+            res_b.metric("Άμμος (m³)", f"{sand_m3:.2f} κυβικά")
+            st.info(f"💡 Συνολικός όγκος μείγματος: {volume_m3:.2f} m³")
+        else:
+            # Έτοιμος σοβάς (περίπου 15kg ανά m2 για 1cm πάχος)
+            bags_ready = (m2_work * thickness * 15) / 25
+            st.metric("Έτοιμος Σοβάς (25kg)", f"{int(bags_ready) + 1} τσουβάλια")
+            st.info("💡 Η εκτίμηση βασίζεται σε κατανάλωση 1.5kg/m² ανά χιλιοστό πάχους.")
+
+    elif calc_mode == "Χρώματα":
         m2_paint = st.number_input("m² επιφάνειας τοίχου", value=50.0)
-        st.success(f"Χρειάζεστε: {(m2_paint * 2) / 12:.1f} Λίτρα (για 2 χέρια)")
+        hands = st.slider("Πόσα χέρια;", 1, 3, 2)
+        total_liters = (m2_paint * hands) / 12
+        st.success(f"🎨 Θα χρειαστείτε περίπου: {total_liters:.1f} Λίτρα")χέρια)")
 
 # --- TAB 8: ΑΡΧΕΙΑ ---
 with tabs[7]:
