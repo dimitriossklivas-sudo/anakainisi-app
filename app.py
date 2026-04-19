@@ -76,20 +76,196 @@ with tabs[0]:
                 new = pd.DataFrame([{"Ημερομηνία": str(e_d), "Κατηγορία": e_c, "Ποσό": e_a, "Πληρωτής": e_p}])
                 conn.update(worksheet="Expenses", data=pd.concat([df_exp, new], ignore_index=True))
                 st.rerun()
-
-# --- TAB 2, 3, 4, 5, 6 (ΣΥΝΟΠΤΙΚΑ) ---
-with tabs[1]: 
+# --- TAB 2: ΣΥΝΕΡΓΕΙΑ (ΕΠΑΝΑΦΟΡΑ) ---
+with tabs[1]:
+    st.subheader("👷 Διαχείριση Συνεργείων & Επαφών")
+    
+    # 1. Διάβασμα δεδομένων
     df_c = safe_read("Contacts")
-    st.dataframe(df_c, use_container_width=True)
-with tabs[2]: st.write("Πρόοδος Εργασιών")
-with tabs[3]: 
-    df_o = safe_read("Offers")
-    st.dataframe(df_o, use_container_width=True)
-with tabs[4]: 
-    df_l = safe_read("Loan")
-    st.dataframe(df_l, use_container_width=True)
-with tabs[5]: st.dataframe(safe_read("Expenses"), use_container_width=True)
+    
+    # 2. Φόρμα Εισαγωγής Νέας Επαφής
+    with st.expander("➕ Προσθήκη Νέου Συνεργάτη"):
+        with st.form("form_contact_new", clear_on_submit=True):
+            col_name, col_job = st.columns(2)
+            with col_name:
+                c_name = st.text_input("Ονοματεπώνυμο / Τεχνικός")
+            with col_job:
+                c_job = st.text_input("Ειδικότητα (π.χ. Ηλεκτρολόγος)")
+            
+            c_phone = st.text_input("Τηλέφωνο Επικοινωνίας")
+            c_notes = st.text_area("Σημειώσεις")
+            
+            if st.form_submit_button("Αποθήκευση"):
+                if c_name:
+                    new_contact = pd.DataFrame([{
+                        "Όνομα": c_name, 
+                        "Ειδικότητα": c_job, 
+                        "Τηλέφωνο": c_phone,
+                        "Σημειώσεις": c_notes
+                    }])
+                    conn.update(worksheet="Contacts", data=pd.concat([df_c, new_contact], ignore_index=True))
+                    st.toast(f"Η επαφή {c_name} αποθηκεύτηκε!", icon="✅")
+                    st.rerun()
+                else:
+                    st.error("Παρακαλώ συμπληρώστε τουλάχιστον το όνομα.")
 
+    st.divider()
+
+    # 3. Προβολή Λίστας
+    if not df_c.empty:
+        st.write("### Κατάλογος Επαφών")
+        # Χρήση st.data_editor για να μπορείς να σβήνεις ή να αλλάζεις απευθείας (προαιρετικό)
+        st.dataframe(df_c, use_container_width=True)
+    else:
+        st.info("Δεν υπάρχουν καταχωρημένες επαφές.")
+# --- TAB 3: ΠΡΟΟΔΟΣ ΕΡΓΑΣΙΩΝ ---
+with tabs[2]:
+    st.subheader("📈 Παρακολούθηση Προόδου & Πληρωμών")
+    df_p = safe_read("Progress")
+    df_e = safe_read("Expenses")
+    
+    # Φόρμα για νέα εργασία
+    with st.expander("➕ Προσθήκη Νέας Εργασίας/Συμφωνίας"):
+        with st.form("new_task_form"):
+            nt_name = st.text_input("Όνομα Εργασίας (π.χ. Υδραυλικά)")
+            nt_deal = st.number_input("Συμφωνημένη Αμοιβή (€)", min_value=0.0)
+            if st.form_submit_button("Προσθήκη"):
+                new_t = pd.DataFrame([{"Εργασία": nt_name, "Κατάσταση": "Σε εξέλιξη", "Συνολική Αμοιβή": nt_deal}])
+                conn.update(worksheet="Progress", data=pd.concat([df_p, new_t], ignore_index=True))
+                st.rerun()
+
+    st.divider()
+
+    if not df_p.empty:
+        # Καθαρισμός στηλών για σωστή σύγκριση
+        if not df_e.empty:
+            df_e.columns = df_e.columns.str.strip()
+            df_e['Κατηγορία'] = df_e['Κατηγορία'].astype(str).str.strip()
+            df_e['Είδος'] = df_e['Είδος'].astype(str).str.strip()
+
+        for i, r in df_p.iterrows():
+            t_name = str(r['Εργασία']).strip()
+            # Υπολογισμός πληρωμών μόνο για "Αμοιβή" στην αντίστοιχη κατηγορία
+            p_done = df_e[(df_e['Κατηγορία'] == t_name) & (df_e['Είδος'].isin(["Αμοιβή", "Αμοιβές"]))]['Ποσό'].sum() if not df_e.empty else 0
+            total = r['Συνολική Αμοιβή']
+            
+            # Υπολογισμός ποσοστού
+            perc = (p_done / total) if total > 0 else 0
+            
+            # Εμφάνιση Μπάρας
+            st.write(f"### {t_name}")
+            col_bar, col_met = st.columns([3, 1])
+            
+            with col_bar:
+                st.progress(min(perc, 1.0))
+                st.write(f"💰 Πληρώθηκαν: **{p_done:,.2f} €** από **{total:,.2f} €**")
+            
+            with col_met:
+                st.metric("Εξόφληση", f"{perc*100:.1f}%")
+            st.divider()
+    else:
+        st.info("Δεν έχουν καταχωρηθεί εργασίες στο φύλλο Progress.")
+# --- TAB 4: ΠΡΟΣΦΟΡΕΣ (ΕΠΑΝΑΦΟΡΑ & ΕΝΙΣΧΥΣΗ) ---
+with tabs[3]:
+    st.subheader("💰 Διαχείριση & Σύγκριση Προσφορών")
+    
+    df_o = safe_read("Offers")
+    
+    # Φόρμα Εισαγωγής Νέας Προσφοράς
+    with st.expander("➕ Καταχώρηση Νέας Προσφοράς"):
+        with st.form("form_offer_new", clear_on_submit=True):
+            o_date = st.date_input("Ημερομηνία Προσφοράς")
+            o_prov = st.text_input("Πάροχος / Κατάστημα (π.χ. Leroy Merlin, Τοπικός)")
+            o_desc = st.text_input("Περιγραφή (π.χ. Πλακάκια Μπάνιου)")
+            o_amt = st.number_input("Ποσό Προσφοράς (€)", min_value=0.0)
+            o_link = st.text_input("Link Αρχείου (π.χ. Drive PDF)")
+            
+            if st.form_submit_button("Αποθήκευση Προσφοράς"):
+                if o_prov and o_amt > 0:
+                    new_offer = pd.DataFrame([{
+                        "Ημερομηνία": str(o_date),
+                        "Πάροχος": o_prov,
+                        "Περιγραφή": o_desc,
+                        "Ποσό": o_amt,
+                        "Link": o_link
+                    }])
+                    conn.update(worksheet="Offers", data=pd.concat([df_o, new_offer], ignore_index=True))
+                    st.toast("Η προσφορά καταχωρήθηκε επιτυχώς!", icon="💰")
+                    st.rerun()
+                else:
+                    st.warning("Παρακαλώ συμπληρώστε Πάροχο και Ποσό.")
+
+    st.divider()
+
+    # Προβολή Προσφορών
+    if not df_o.empty:
+        # Υπολογισμός χαμηλότερης προσφοράς για info
+        min_offer = df_o['Ποσό'].min()
+        st.info(f"💡 Η πιο οικονομική προσφορά μέχρι στιγμής είναι: **{min_offer:,.2f} €**")
+        
+        st.dataframe(df_o, use_container_width=True)
+    else:
+        st.info("Δεν έχουν καταχωρηθεί προσφορές ακόμα.")
+
+# --- TAB 5: ΔΑΝΕΙΟ (ΕΠΑΝΑΦΟΡΑ & ΚΑΤΑΧΩΡΗΣΗ) ---
+with tabs[4]:
+    st.subheader("🏦 Διαχείριση Στεγαστικού Δανείου")
+    df_l = safe_read("Loan")
+    
+    # 1. Metrics Δανείου
+    if not df_l.empty:
+        # Υποθέτουμε ότι η τελευταία εγγραφή έχει το τρέχον υπόλοιπο
+        current_balance = df_l['Υπόλοιπο Δανείου'].iloc[-1]
+        st.metric("Τρέχον Υπόλοιπο Δανείου", f"{current_balance:,.2f} €", delta_color="inverse")
+    
+    # 2. Φόρμα Καταχώρησης Δόσης / Κίνησης
+    with st.expander("➕ Καταχώρηση Πληρωμής Δόσης"):
+        with st.form("form_loan_new", clear_on_submit=True):
+            l_date = st.date_input("Ημερομηνία Πληρωμής")
+            l_paid = st.number_input("Ποσό Δόσης (€)", min_value=0.0)
+            l_new_bal = st.number_input("Νέο Υπόλοιπο Δανείου (€)", min_value=0.0)
+            
+            if st.form_submit_button("Ενημέρωση Δανείου"):
+                if l_paid > 0:
+                    new_loan_entry = pd.DataFrame([{
+                        "Ημερομηνία": str(l_date),
+                        "Ποσό Δόσης": l_paid,
+                        "Υπόλοιπο Δανείου": l_new_bal
+                    }])
+                    conn.update(worksheet="Loan", data=pd.concat([df_l, new_loan_entry], ignore_index=True))
+                    st.toast("Το υπόλοιπο του δανείου ενημερώθηκε!", icon="🏦")
+                    st.rerun()
+
+    st.divider()
+    if not df_l.empty:
+        st.write("### Ιστορικό Πληρωμών Δανείου")
+        st.dataframe(df_l, use_container_width=True)
+
+# --- TAB 6: ΙΣΤΟΡΙΚΟ (ΠΛΗΡΗΣ ΛΙΣΤΑ ΕΞΟΔΩΝ) ---
+with tabs[5]:
+    st.subheader("📝 Αναλυτικό Ιστορικό Εξόδων")
+    df_all_exp = safe_read("Expenses")
+    
+    if not df_all_exp.empty:
+        st.write("💡 Χρησιμοποιήστε τα βέλη στις κεφαλίδες για ταξινόμηση (π.χ. ανά ημερομηνία ή ποσό).")
+        
+        # Προσθήκη φίλτρου γρήγορης αναζήτησης
+        search = st.text_input("🔍 Αναζήτηση στο ιστορικό (π.χ. 'Leroy' ή 'Υδραυλικά')")
+        if search:
+            df_all_exp = df_all_exp[df_all_exp.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
+        
+        st.dataframe(df_all_exp, use_container_width=True)
+        
+        # Δυνατότητα λήψης σε CSV
+        csv = df_all_exp.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Λήψη Ιστορικού σε Excel/CSV",
+            data=csv,
+            file_name='sklivas_expenses_history.csv',
+            mime='text/csv',
+        )
+    else:
+        st.info("Δεν υπάρχουν δεδομένα εξόδων για εμφάνιση.")
 # --- TAB 7: CALCULATOR (ΔΙΟΡΘΩΜΕΝΟ) ---
 with tabs[6]:
     st.subheader("📐 Υπολογιστής Υλικών")
