@@ -128,10 +128,11 @@ def render_dashboard(df_exp: pd.DataFrame):
     if not df_exp.empty:
         total_spent = to_numeric_series(df_exp, "Ποσό").sum()
 
-    remaining = budget - total_spent
+        remaining = budget - total_spent
     usage_percent = (total_spent / budget * 100) if budget > 0 else 0.0
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Έξοδα", f"{total_spent:,.2f} €")
-    c2.metric("
+    c2.metric("Budget %", f"{usage_percent:.1f}%")
+    c3.metric("Υπόλοιπο", f"{remaining:,.2f} €")
 
