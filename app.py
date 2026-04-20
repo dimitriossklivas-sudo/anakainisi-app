@@ -66,6 +66,15 @@ st.markdown(
         box-shadow: 0 10px 24px rgba(15,23,42,0.08);
         border-top: 4px solid #D4AF37;
     }
+    .maker {
+        margin-top: 24px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        background: rgba(255,255,255,0.85);
+        border: 1px solid rgba(15,23,42,0.06);
+        color: #334155;
+        font-size: 0.95rem;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -265,6 +274,23 @@ def card_end():
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+def safe_text(value, fallback=""):
+    if pd.isna(value):
+        return fallback
+    return str(value)
+
+
+def build_labels(df: pd.DataFrame, id_col: str, label_builder):
+    labels = {}
+    if df.empty or id_col not in df.columns:
+        return labels
+    for _, row in df.iterrows():
+        row_id = safe_text(row.get(id_col, ""))
+        if row_id:
+            labels[row_id] = label_builder(row)
+    return labels
+
+
 df_expenses = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
 df_tasks = safe_read(SHEET_TASKS, TASK_COLUMNS)
 df_offers = safe_read(SHEET_OFFERS, OFFER_COLUMNS)
@@ -458,31 +484,47 @@ def render_expenses(df_exp: pd.DataFrame):
     if filtered.empty:
         return
 
+    expense_labels = build_labels(
+        filtered,
+        "_id",
+        lambda row: f"{safe_text(row['Ημερομηνία'])} | {safe_text(row['Κατηγορία'])} | {safe_text(row['Είδος'])} | {format_currency(pd.to_numeric(pd.Series([row['Ποσό']]), errors='coerce').fillna(0).iloc[0])}",
+    )
+    expense_ids = list(expense_labels.keys())
+
+    if not expense_ids:
+        st.warning("Δεν βρέθηκαν έγκυρες εγγραφές.")
+        return
+
     selected_id = st.selectbox(
         "Επιλογή εγγραφής για edit / delete",
-        options=filtered["_id"].tolist(),
-        format_func=lambda rid: (
-            f"{filtered.loc[filtered['_id'] == rid, 'Ημερομηνία'].iloc[0]} | "
-            f"{filtered.loc[filtered['_id'] == rid, 'Κατηγορία'].iloc[0]} | "
-            f"{filtered.loc[filtered['_id'] == rid, 'Είδος'].iloc[0]} | "
-            f"{format_currency(pd.to_numeric(filtered.loc[filtered['_id'] == rid, 'Ποσό'], errors='coerce').fillna(0).iloc[0])}"
-        ),
+        options=expense_ids,
+        format_func=lambda rid: expense_labels.get(rid, "Άγνωστη εγγραφή"),
     )
 
-    row = df_exp[df_exp["_id"] == selected_id].iloc[0]
+    row_df = df_exp[df_exp["_id"].astype(str) == str(selected_id)]
+    if row_df.empty:
+        st.warning("Η επιλεγμένη εγγραφή δεν βρέθηκε. Δοκίμασε refresh.")
+        return
+
+    row = row_df.iloc[0]
 
     with st.expander("✏️ Edit εξόδου"):
         with st.form("expense_edit_form"):
             c1, c2, c3 = st.columns(3)
             with c1:
-                new_date = st.text_input("Ημερομηνία", value=str(row["Ημερομηνία"]))
-                new_category = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES, index=default_index(EXPENSE_CATEGORIES, str(row["Κατηγορία"])))
+                new_date = st.text_input("Ημερομηνία", value=safe_text(row["Ημερομηνία"]))
+                new_category = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES, index=default_index(EXPENSE_CATEGORIES, safe_text(row["Κατηγορία"])))
             with c2:
-                new_type = st.selectbox("Είδος", EXPENSE_TYPES, index=default_index(EXPENSE_TYPES, str(row["Είδος"])))
-                new_payer = st.selectbox("Πληρωτής", PAYERS, index=default_index(PAYERS, str(row["Πληρωτής"])))
+                new_type = st.selectbox("Είδος", EXPENSE_TYPES, index=default_index(EXPENSE_TYPES, safe_text(row["Είδος"])))
+                new_payer = st.selectbox("Πληρωτής", PAYERS, index=default_index(PAYERS, safe_text(row["Πληρωτής"])))
             with c3:
-                new_amount = st.number_input("Ποσό (€)", min_value=0.0, value=float(pd.to_numeric(pd.Series([row["Ποσό"]]), errors="coerce").fillna(0).iloc[0]), step=10.0)
-            new_notes = st.text_input("Σημειώσεις", value=str(row["Σημειώσεις"]))
+                new_amount = st.number_input(
+                    "Ποσό (€)",
+                    min_value=0.0,
+                    value=float(pd.to_numeric(pd.Series([row["Ποσό"]]), errors="coerce").fillna(0).iloc[0]),
+                    step=10.0,
+                )
+            new_notes = st.text_input("Σημειώσεις", value=safe_text(row["Σημειώσεις"]))
             save_btn = st.form_submit_button("Αποθήκευση αλλαγών")
 
             if save_btn:
@@ -503,7 +545,7 @@ def render_expenses(df_exp: pd.DataFrame):
                     st.success("Η εγγραφή ενημερώθηκε.")
                     st.rerun()
 
-    if st.button("🗑️ Διαγραφή εξόδου"):
+    if st.button("🗑️ Διαγραφή εξόδου", key="delete_expense_btn"):
         updated_df = delete_row_by_id(df_exp, selected_id)
         if safe_write(SHEET_EXPENSES, updated_df):
             st.success("Η εγγραφή διαγράφηκε.")
@@ -551,26 +593,55 @@ def render_tasks(df_task: pd.DataFrame):
     if filtered.empty:
         return
 
+    task_labels = build_labels(
+        filtered,
+        "_id",
+        lambda row: f"{safe_text(row['Εργασία'])} | {safe_text(row['Κατάσταση'])}",
+    )
+    task_ids = list(task_labels.keys())
+
+    if not task_ids:
+        st.warning("Δεν βρέθηκαν έγκυρες εργασίες.")
+        return
+
     selected_id = st.selectbox(
         "Επιλογή εργασίας για edit / delete",
-        options=filtered["_id"].tolist(),
-        format_func=lambda rid: f"{filtered.loc[filtered['_id'] == rid, 'Εργασία'].iloc[0]} | {filtered.loc[filtered['_id'] == rid, 'Κατάσταση'].iloc[0]}",
+        options=task_ids,
+        format_func=lambda rid: task_labels.get(rid, "Άγνωστη εργασία"),
     )
 
-    row = df_task[df_task["_id"] == selected_id].iloc[0]
+    row_df = df_task[df_task["_id"].astype(str) == str(selected_id)]
+    if row_df.empty:
+        st.warning("Η επιλεγμένη εργασία δεν βρέθηκε. Δοκίμασε refresh.")
+        return
+
+    row = row_df.iloc[0]
 
     with st.expander("✏️ Edit εργασίας"):
         with st.form("task_edit_form"):
             c1, c2, c3 = st.columns(3)
             with c1:
-                new_task = st.text_input("Εργασία", value=str(row["Εργασία"]))
-                new_status = st.selectbox("Κατάσταση", TASK_STATUSES, index=default_index(TASK_STATUSES, str(row["Κατάσταση"])))
+                new_task = st.text_input("Εργασία", value=safe_text(row["Εργασία"]))
+                new_status = st.selectbox(
+                    "Κατάσταση",
+                    TASK_STATUSES,
+                    index=default_index(TASK_STATUSES, safe_text(row["Κατάσταση"])),
+                )
             with c2:
-                new_cost = st.number_input("Κόστος (€)", min_value=0.0, value=float(pd.to_numeric(pd.Series([row["Κόστος"]]), errors="coerce").fillna(0).iloc[0]), step=10.0)
-                new_priority = st.selectbox("Προτεραιότητα", TASK_PRIORITIES, index=default_index(TASK_PRIORITIES, str(row["Προτεραιότητα"])))
+                new_cost = st.number_input(
+                    "Κόστος (€)",
+                    min_value=0.0,
+                    value=float(pd.to_numeric(pd.Series([row["Κόστος"]]), errors="coerce").fillna(0).iloc[0]),
+                    step=10.0,
+                )
+                new_priority = st.selectbox(
+                    "Προτεραιότητα",
+                    TASK_PRIORITIES,
+                    index=default_index(TASK_PRIORITIES, safe_text(row["Προτεραιότητα"])),
+                )
             with c3:
-                new_assignee = st.text_input("Ανάθεση", value=str(row["Ανάθεση"]))
-            new_notes = st.text_input("Σημειώσεις", value=str(row["Σημειώσεις"]))
+                new_assignee = st.text_input("Ανάθεση", value=safe_text(row["Ανάθεση"]))
+            new_notes = st.text_input("Σημειώσεις", value=safe_text(row["Σημειώσεις"]))
 
             save_btn = st.form_submit_button("Αποθήκευση αλλαγών")
             if save_btn and new_task.strip():
@@ -591,7 +662,7 @@ def render_tasks(df_task: pd.DataFrame):
                     st.success("Η εργασία ενημερώθηκε.")
                     st.rerun()
 
-    if st.button("🗑️ Διαγραφή εργασίας"):
+    if st.button("🗑️ Διαγραφή εργασίας", key="delete_task_btn"):
         updated_df = delete_row_by_id(df_task, selected_id)
         if safe_write(SHEET_TASKS, updated_df):
             st.success("Η εργασία διαγράφηκε.")
@@ -637,32 +708,53 @@ def render_offers(df_off: pd.DataFrame):
         temp = filtered.copy()
         temp["Ποσό"] = money_series(temp, "Ποσό")
         best = temp.sort_values("Ποσό").iloc[0]
-        st.info(f"🏆 Καλύτερη προσφορά: {best['Πάροχος']} ({best['Ποσό']:.2f} €)")
+        st.info(f"🏆 Καλύτερη προσφορά: {safe_text(best['Πάροχος'])} ({best['Ποσό']:.2f} €)")
 
     show_table(filtered)
 
     if filtered.empty:
         return
 
+    offer_labels = build_labels(
+        filtered,
+        "_id",
+        lambda row: f"{safe_text(row['Πάροχος'])} | {safe_text(row['Περιγραφή'])}",
+    )
+    offer_ids = list(offer_labels.keys())
+
+    if not offer_ids:
+        st.warning("Δεν βρέθηκαν έγκυρες προσφορές.")
+        return
+
     selected_id = st.selectbox(
         "Επιλογή προσφοράς για edit / delete",
-        options=filtered["_id"].tolist(),
-        format_func=lambda rid: f"{filtered.loc[filtered['_id'] == rid, 'Πάροχος'].iloc[0]} | {filtered.loc[filtered['_id'] == rid, 'Περιγραφή'].iloc[0]}",
+        options=offer_ids,
+        format_func=lambda rid: offer_labels.get(rid, "Άγνωστη προσφορά"),
     )
 
-    row = df_off[df_off["_id"] == selected_id].iloc[0]
+    row_df = df_off[df_off["_id"].astype(str) == str(selected_id)]
+    if row_df.empty:
+        st.warning("Η επιλεγμένη προσφορά δεν βρέθηκε. Δοκίμασε refresh.")
+        return
+
+    row = row_df.iloc[0]
 
     with st.expander("✏️ Edit προσφοράς"):
         with st.form("offer_edit_form"):
             c1, c2, c3 = st.columns(3)
             with c1:
-                new_provider = st.text_input("Πάροχος", value=str(row["Πάροχος"]))
-                new_category = st.selectbox("Κατηγορία", OFFER_CATEGORIES, index=default_index(OFFER_CATEGORIES, str(row["Κατηγορία"])))
+                new_provider = st.text_input("Πάροχος", value=safe_text(row["Πάροχος"]))
+                new_category = st.selectbox("Κατηγορία", OFFER_CATEGORIES, index=default_index(OFFER_CATEGORIES, safe_text(row["Κατηγορία"])))
             with c2:
-                new_description = st.text_input("Περιγραφή", value=str(row["Περιγραφή"]))
+                new_description = st.text_input("Περιγραφή", value=safe_text(row["Περιγραφή"]))
             with c3:
-                new_amount = st.number_input("Ποσό (€)", min_value=0.0, value=float(pd.to_numeric(pd.Series([row["Ποσό"]]), errors="coerce").fillna(0).iloc[0]), step=10.0)
-            new_notes = st.text_input("Σημειώσεις", value=str(row["Σημειώσεις"]))
+                new_amount = st.number_input(
+                    "Ποσό (€)",
+                    min_value=0.0,
+                    value=float(pd.to_numeric(pd.Series([row["Ποσό"]]), errors="coerce").fillna(0).iloc[0]),
+                    step=10.0,
+                )
+            new_notes = st.text_input("Σημειώσεις", value=safe_text(row["Σημειώσεις"]))
             save_btn = st.form_submit_button("Αποθήκευση αλλαγών")
 
             if save_btn and new_provider.strip():
@@ -682,7 +774,7 @@ def render_offers(df_off: pd.DataFrame):
                     st.success("Η προσφορά ενημερώθηκε.")
                     st.rerun()
 
-    if st.button("🗑️ Διαγραφή προσφοράς"):
+    if st.button("🗑️ Διαγραφή προσφοράς", key="delete_offer_btn"):
         updated_df = delete_row_by_id(df_off, selected_id)
         if safe_write(SHEET_OFFERS, updated_df):
             st.success("Η προσφορά διαγράφηκε.")
@@ -791,6 +883,7 @@ st.sidebar.markdown("### Πλοήγηση")
 menu = st.sidebar.radio("Μενού", MENU_OPTIONS)
 st.sidebar.markdown("---")
 st.sidebar.caption(f"Τελευταία ενημέρωση: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+st.sidebar.caption("Κατασκευαστής εφαρμογής: Σκλίβας Δημήτριος")
 
 if menu == "🏠 Dashboard":
     render_dashboard(df_expenses, df_tasks, df_offers)
@@ -806,4 +899,13 @@ elif menu == "🏦 Δάνειο":
     render_loan()
 elif menu == "🧮 Calculator":
     render_calculator()
+
+st.markdown(
+    """
+    <div class="maker">
+        Κατασκευαστής εφαρμογής: <strong>Σκλίβας Δημήτριος</strong>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
