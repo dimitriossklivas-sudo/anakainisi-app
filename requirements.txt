@@ -4,3 +4,5 @@ plotly
 st-gsheets-connection
 Pillow
 fpdf2
+openai
+
