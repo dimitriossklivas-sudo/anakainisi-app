@@ -1,13 +1,16 @@
+import json
+import tempfile
 import uuid
 from datetime import datetime
 
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from openai import OpenAI
 from streamlit_gsheets import GSheetsConnection
 
 st.set_page_config(
-    page_title="Renovation Manager V4",
+    page_title="Renovation Manager V4.1",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -83,23 +86,17 @@ st.markdown(
 st.markdown(
     """
     <div class="hero">
-        <h1>🏗️ Renovation Manager V4</h1>
-        <p>Διαχείριση εξόδων, εργασιών, προσφορών και budget ανακαίνισης.</p>
+        <h1>🏗️ Renovation Manager V4.1</h1>
+        <p>Διαχείριση εξόδων, εργασιών, προσφορών, budget και AI ανάγνωση προσφορών από φωτογραφία/PDF.</p>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-# =========================
-# SHEETS
-# =========================
 SHEET_EXPENSES = "Expenses"
 SHEET_TASKS = "Progress"
 SHEET_OFFERS = "Offers"
 
-# =========================
-# OPTIONS
-# =========================
 MENU_OPTIONS = [
     "🏠 Dashboard",
     "💰 Έξοδα",
@@ -132,7 +129,16 @@ def get_connection():
     return st.connection("gsheets", type=GSheetsConnection)
 
 
+@st.cache_resource
+def get_openai_client():
+    api_key = st.secrets.get("OPENAI_API_KEY", "")
+    if not api_key:
+        return None
+    return OpenAI(api_key=api_key)
+
+
 conn = get_connection()
+ai_client = get_openai_client()
 
 
 def empty_df(columns):
@@ -291,6 +297,155 @@ def build_labels(df: pd.DataFrame, id_col: str, label_builder):
     return labels
 
 
+def parse_json_text(text: str) -> dict:
+    text = text.strip()
+    try:
+        return json.loads(text)
+    except Exception:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            return json.loads(text[start:end + 1])
+        raise ValueError("Δεν βρέθηκε έγκυρο JSON στην απάντηση του AI.")
+
+
+def extract_offer_from_image_with_ai(uploaded_file) -> dict:
+    if ai_client is None:
+        raise ValueError("Δεν έχει οριστεί OPENAI_API_KEY στα secrets.")
+
+    file_bytes = uploaded_file.getvalue()
+
+    suffix = ".jpg"
+    if uploaded_file.name.lower().endswith(".png"):
+        suffix = ".png"
+    elif uploaded_file.name.lower().endswith(".webp"):
+        suffix = ".webp"
+    elif uploaded_file.name.lower().endswith(".jpeg"):
+        suffix = ".jpeg"
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(file_bytes)
+        tmp_path = tmp.name
+
+    with open(tmp_path, "rb") as f:
+        uploaded = ai_client.files.create(file=f, purpose="vision")
+
+    response = ai_client.responses.create(
+        model="gpt-4.1-mini",
+        input=[{
+            "role": "user",
+            "content": [
+                {
+                    "type": "input_text",
+                    "text": """
+Διάβασε την προσφορά από την εικόνα και επέστρεψε ΜΟΝΟ έγκυρο JSON.
+Αν κάποιο πεδίο λείπει, βάλε κενό string ή 0.
+
+{
+  "provider": "",
+  "description": "",
+  "amount": 0,
+  "category": "",
+  "notes": "",
+  "vat": "",
+  "date": "",
+  "line_items": [
+    {
+      "title": "",
+      "amount": 0
+    }
+  ]
+}
+""",
+                },
+                {
+                    "type": "input_image",
+                    "file_id": uploaded.id,
+                },
+            ],
+        }],
+        text={"format": {"type": "json_object"}},
+    )
+
+    data = parse_json_text(response.output_text)
+
+    return {
+        "Πάροχος": str(data.get("provider", "")).strip(),
+        "Περιγραφή": str(data.get("description", "")).strip(),
+        "Ποσό": float(data.get("amount", 0) or 0),
+        "Κατηγορία": str(data.get("category", "")).strip() or "Άλλο",
+        "Σημειώσεις": (
+            f"Ημ/νία: {data.get('date', '')} | "
+            f"ΦΠΑ: {data.get('vat', '')} | "
+            f"AI notes: {data.get('notes', '')} | "
+            f"Line items: {data.get('line_items', [])}"
+        ).strip(),
+    }
+
+
+def extract_offer_from_pdf_with_ai(uploaded_file) -> dict:
+    if ai_client is None:
+        raise ValueError("Δεν έχει οριστεί OPENAI_API_KEY στα secrets.")
+
+    file_bytes = uploaded_file.getvalue()
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp.write(file_bytes)
+        tmp_path = tmp.name
+
+    with open(tmp_path, "rb") as f:
+        uploaded = ai_client.files.create(file=f, purpose="user_data")
+
+    response = ai_client.responses.create(
+        model="gpt-4.1-mini",
+        input=[{
+            "role": "user",
+            "content": [
+                {"type": "input_file", "file_id": uploaded.id},
+                {
+                    "type": "input_text",
+                    "text": """
+Διάβασε το PDF της προσφοράς και επέστρεψε ΜΟΝΟ έγκυρο JSON.
+Αν κάποιο πεδίο λείπει, βάλε κενό string ή 0.
+
+{
+  "provider": "",
+  "description": "",
+  "amount": 0,
+  "category": "",
+  "notes": "",
+  "vat": "",
+  "date": "",
+  "line_items": [
+    {
+      "title": "",
+      "amount": 0
+    }
+  ]
+}
+""",
+                },
+            ],
+        }],
+        text={"format": {"type": "json_object"}},
+    )
+
+    data = parse_json_text(response.output_text)
+
+    return {
+        "Πάροχος": str(data.get("provider", "")).strip(),
+        "Περιγραφή": str(data.get("description", "")).strip(),
+        "Ποσό": float(data.get("amount", 0) or 0),
+        "Κατηγορία": str(data.get("category", "")).strip() or "Άλλο",
+        "Σημειώσεις": (
+            f"Ημ/νία: {data.get('date', '')} | "
+            f"ΦΠΑ: {data.get('vat', '')} | "
+            f"AI notes: {data.get('notes', '')} | "
+            f"Line items: {data.get('line_items', [])}"
+        ).strip(),
+    }
+
+
 df_expenses = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
 df_tasks = safe_read(SHEET_TASKS, TASK_COLUMNS)
 df_offers = safe_read(SHEET_OFFERS, OFFER_COLUMNS)
@@ -299,7 +454,6 @@ df_offers = safe_read(SHEET_OFFERS, OFFER_COLUMNS)
 def filter_expenses(df: pd.DataFrame) -> pd.DataFrame:
     filtered = df.copy()
     c1, c2, c3, c4 = st.columns(4)
-
     with c1:
         category = st.selectbox("Κατηγορία", ["Όλες"] + EXPENSE_CATEGORIES, key="exp_cat_filter")
     with c2:
@@ -317,14 +471,12 @@ def filter_expenses(df: pd.DataFrame) -> pd.DataFrame:
         filtered = filtered[filtered["Πληρωτής"] == payer]
     if search:
         filtered = filtered[filtered["Σημειώσεις"].astype(str).str.lower().str.contains(search, na=False)]
-
     return filtered
 
 
 def filter_tasks(df: pd.DataFrame) -> pd.DataFrame:
     filtered = df.copy()
     c1, c2, c3 = st.columns(3)
-
     with c1:
         status = st.selectbox("Κατάσταση", ["Όλες"] + TASK_STATUSES, key="task_status_filter")
     with c2:
@@ -338,14 +490,12 @@ def filter_tasks(df: pd.DataFrame) -> pd.DataFrame:
         filtered = filtered[filtered["Προτεραιότητα"] == priority]
     if search:
         filtered = filtered[filtered["Εργασία"].astype(str).str.lower().str.contains(search, na=False)]
-
     return filtered
 
 
 def filter_offers(df: pd.DataFrame) -> pd.DataFrame:
     filtered = df.copy()
     c1, c2 = st.columns(2)
-
     with c1:
         category = st.selectbox("Κατηγορία", ["Όλες"] + OFFER_CATEGORIES, key="offer_cat_filter")
     with c2:
@@ -355,13 +505,11 @@ def filter_offers(df: pd.DataFrame) -> pd.DataFrame:
         filtered = filtered[filtered["Κατηγορία"] == category]
     if search:
         filtered = filtered[filtered["Πάροχος"].astype(str).str.lower().str.contains(search, na=False)]
-
     return filtered
 
 
 def render_dashboard(df_exp: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.DataFrame):
     st.subheader("🏠 Dashboard")
-
     budget = st.number_input("💼 Συνολικό Budget (€)", min_value=0.0, value=30000.0, step=1000.0)
 
     spent = money_series(df_exp, "Ποσό").sum()
@@ -412,7 +560,6 @@ def render_dashboard(df_exp: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.Dat
         if not df_exp.empty:
             recent = df_exp.copy()
             recent["Ημερομηνία_sort"] = parse_date_series(recent, "Ημερομηνία")
-            recent["Ποσό"] = money_series(recent, "Ποσό")
             recent = recent.sort_values("Ημερομηνία_sort", ascending=False).head(5)
             show_table(recent.drop(columns=["Ημερομηνία_sort"]), hide_id=True)
         else:
@@ -459,8 +606,7 @@ def render_expenses(df_exp: pd.DataFrame):
                 amount = st.number_input("Ποσό (€)", min_value=0.0, step=10.0)
             notes = st.text_input("Σημειώσεις")
 
-            submit = st.form_submit_button("Αποθήκευση")
-            if submit:
+            if st.form_submit_button("Αποθήκευση"):
                 updated_df = append_row(
                     df_exp,
                     {
@@ -490,9 +636,7 @@ def render_expenses(df_exp: pd.DataFrame):
         lambda row: f"{safe_text(row['Ημερομηνία'])} | {safe_text(row['Κατηγορία'])} | {safe_text(row['Είδος'])} | {format_currency(pd.to_numeric(pd.Series([row['Ποσό']]), errors='coerce').fillna(0).iloc[0])}",
     )
     expense_ids = list(expense_labels.keys())
-
     if not expense_ids:
-        st.warning("Δεν βρέθηκαν έγκυρες εγγραφές.")
         return
 
     selected_id = st.selectbox(
@@ -503,9 +647,7 @@ def render_expenses(df_exp: pd.DataFrame):
 
     row_df = df_exp[df_exp["_id"].astype(str) == str(selected_id)]
     if row_df.empty:
-        st.warning("Η επιλεγμένη εγγραφή δεν βρέθηκε. Δοκίμασε refresh.")
         return
-
     row = row_df.iloc[0]
 
     with st.expander("✏️ Edit εξόδου"):
@@ -518,16 +660,9 @@ def render_expenses(df_exp: pd.DataFrame):
                 new_type = st.selectbox("Είδος", EXPENSE_TYPES, index=default_index(EXPENSE_TYPES, safe_text(row["Είδος"])))
                 new_payer = st.selectbox("Πληρωτής", PAYERS, index=default_index(PAYERS, safe_text(row["Πληρωτής"])))
             with c3:
-                new_amount = st.number_input(
-                    "Ποσό (€)",
-                    min_value=0.0,
-                    value=float(pd.to_numeric(pd.Series([row["Ποσό"]]), errors="coerce").fillna(0).iloc[0]),
-                    step=10.0,
-                )
+                new_amount = st.number_input("Ποσό (€)", min_value=0.0, value=float(pd.to_numeric(pd.Series([row["Ποσό"]]), errors="coerce").fillna(0).iloc[0]), step=10.0)
             new_notes = st.text_input("Σημειώσεις", value=safe_text(row["Σημειώσεις"]))
-            save_btn = st.form_submit_button("Αποθήκευση αλλαγών")
-
-            if save_btn:
+            if st.form_submit_button("Αποθήκευση αλλαγών"):
                 updated_df = update_row_by_id(
                     df_exp,
                     selected_id,
@@ -568,8 +703,7 @@ def render_tasks(df_task: pd.DataFrame):
                 assignee = st.text_input("Ανάθεση")
             notes = st.text_input("Σημειώσεις")
 
-            submit = st.form_submit_button("Αποθήκευση")
-            if submit and task_name.strip():
+            if st.form_submit_button("Αποθήκευση") and task_name.strip():
                 updated_df = append_row(
                     df_task,
                     {
@@ -593,15 +727,9 @@ def render_tasks(df_task: pd.DataFrame):
     if filtered.empty:
         return
 
-    task_labels = build_labels(
-        filtered,
-        "_id",
-        lambda row: f"{safe_text(row['Εργασία'])} | {safe_text(row['Κατάσταση'])}",
-    )
+    task_labels = build_labels(filtered, "_id", lambda row: f"{safe_text(row['Εργασία'])} | {safe_text(row['Κατάσταση'])}")
     task_ids = list(task_labels.keys())
-
     if not task_ids:
-        st.warning("Δεν βρέθηκαν έγκυρες εργασίες.")
         return
 
     selected_id = st.selectbox(
@@ -612,9 +740,7 @@ def render_tasks(df_task: pd.DataFrame):
 
     row_df = df_task[df_task["_id"].astype(str) == str(selected_id)]
     if row_df.empty:
-        st.warning("Η επιλεγμένη εργασία δεν βρέθηκε. Δοκίμασε refresh.")
         return
-
     row = row_df.iloc[0]
 
     with st.expander("✏️ Edit εργασίας"):
@@ -622,29 +748,15 @@ def render_tasks(df_task: pd.DataFrame):
             c1, c2, c3 = st.columns(3)
             with c1:
                 new_task = st.text_input("Εργασία", value=safe_text(row["Εργασία"]))
-                new_status = st.selectbox(
-                    "Κατάσταση",
-                    TASK_STATUSES,
-                    index=default_index(TASK_STATUSES, safe_text(row["Κατάσταση"])),
-                )
+                new_status = st.selectbox("Κατάσταση", TASK_STATUSES, index=default_index(TASK_STATUSES, safe_text(row["Κατάσταση"])))
             with c2:
-                new_cost = st.number_input(
-                    "Κόστος (€)",
-                    min_value=0.0,
-                    value=float(pd.to_numeric(pd.Series([row["Κόστος"]]), errors="coerce").fillna(0).iloc[0]),
-                    step=10.0,
-                )
-                new_priority = st.selectbox(
-                    "Προτεραιότητα",
-                    TASK_PRIORITIES,
-                    index=default_index(TASK_PRIORITIES, safe_text(row["Προτεραιότητα"])),
-                )
+                new_cost = st.number_input("Κόστος (€)", min_value=0.0, value=float(pd.to_numeric(pd.Series([row["Κόστος"]]), errors="coerce").fillna(0).iloc[0]), step=10.0)
+                new_priority = st.selectbox("Προτεραιότητα", TASK_PRIORITIES, index=default_index(TASK_PRIORITIES, safe_text(row["Προτεραιότητα"])))
             with c3:
                 new_assignee = st.text_input("Ανάθεση", value=safe_text(row["Ανάθεση"]))
             new_notes = st.text_input("Σημειώσεις", value=safe_text(row["Σημειώσεις"]))
 
-            save_btn = st.form_submit_button("Αποθήκευση αλλαγών")
-            if save_btn and new_task.strip():
+            if st.form_submit_button("Αποθήκευση αλλαγών") and new_task.strip():
                 updated_df = update_row_by_id(
                     df_task,
                     selected_id,
@@ -672,6 +784,62 @@ def render_tasks(df_task: pd.DataFrame):
 def render_offers(df_off: pd.DataFrame):
     st.subheader("💼 Προσφορές")
 
+    st.markdown("### AI Εισαγωγή από φωτογραφία ή PDF")
+    uploaded_offer = st.file_uploader(
+        "Ανέβασε φωτογραφία ή PDF προσφοράς",
+        type=["png", "jpg", "jpeg", "webp", "pdf"],
+        key="offer_ai_upload",
+    )
+
+    if uploaded_offer is not None and st.button("🤖 Ανάλυση προσφοράς με AI", key="analyze_offer_ai_btn"):
+        try:
+            with st.spinner("Γίνεται ανάγνωση της προσφοράς..."):
+                if uploaded_offer.type == "application/pdf":
+                    ai_offer = extract_offer_from_pdf_with_ai(uploaded_offer)
+                else:
+                    ai_offer = extract_offer_from_image_with_ai(uploaded_offer)
+
+            st.session_state["ai_offer_draft"] = ai_offer
+            st.success("Η προσφορά αναγνωρίστηκε. Έλεγξε τα στοιχεία πριν την αποθήκευση.")
+        except Exception as e:
+            st.error(f"Αποτυχία ανάλυσης προσφοράς: {e}")
+
+    if "ai_offer_draft" in st.session_state:
+        draft = st.session_state["ai_offer_draft"]
+        with st.expander("🧾 Επιβεβαίωση AI προσφοράς", expanded=True):
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                ai_provider = st.text_input("Πάροχος", value=str(draft.get("Πάροχος", "")), key="ai_provider")
+                ai_category = st.selectbox("Κατηγορία", OFFER_CATEGORIES, index=default_index(OFFER_CATEGORIES, str(draft.get("Κατηγορία", "Άλλο"))), key="ai_category")
+            with c2:
+                ai_description = st.text_input("Περιγραφή", value=str(draft.get("Περιγραφή", "")), key="ai_description")
+            with c3:
+                ai_amount = st.number_input("Ποσό (€)", min_value=0.0, value=float(draft.get("Ποσό", 0) or 0), step=10.0, key="ai_amount")
+            ai_notes = st.text_area("Σημειώσεις", value=str(draft.get("Σημειώσεις", "")), key="ai_notes", height=120)
+
+            col_save, col_cancel = st.columns(2)
+            with col_save:
+                if st.button("💾 Αποθήκευση AI προσφοράς", key="save_ai_offer_btn"):
+                    updated_df = append_row(
+                        df_off,
+                        {
+                            "Πάροχος": ai_provider.strip(),
+                            "Περιγραφή": ai_description.strip(),
+                            "Ποσό": ai_amount,
+                            "Κατηγορία": ai_category,
+                            "Σημειώσεις": ai_notes.strip(),
+                        },
+                        OFFER_COLUMNS,
+                    )
+                    if safe_write(SHEET_OFFERS, updated_df):
+                        del st.session_state["ai_offer_draft"]
+                        st.success("Η AI προσφορά αποθηκεύτηκε.")
+                        st.rerun()
+            with col_cancel:
+                if st.button("❌ Απόρριψη", key="cancel_ai_offer_btn"):
+                    del st.session_state["ai_offer_draft"]
+                    st.rerun()
+
     with st.expander("➕ Νέα προσφορά"):
         with st.form("offer_add_form", clear_on_submit=True):
             c1, c2, c3 = st.columns(3)
@@ -684,8 +852,7 @@ def render_offers(df_off: pd.DataFrame):
                 amount = st.number_input("Ποσό (€)", min_value=0.0, step=10.0)
             notes = st.text_input("Σημειώσεις")
 
-            submit = st.form_submit_button("Αποθήκευση")
-            if submit and provider.strip():
+            if st.form_submit_button("Αποθήκευση") and provider.strip():
                 updated_df = append_row(
                     df_off,
                     {
@@ -713,17 +880,12 @@ def render_offers(df_off: pd.DataFrame):
     show_table(filtered)
 
     if filtered.empty:
+        st.info("Χρειάζονται τουλάχιστον 2 προσφορές για σύγκριση.")
         return
 
-    offer_labels = build_labels(
-        filtered,
-        "_id",
-        lambda row: f"{safe_text(row['Πάροχος'])} | {safe_text(row['Περιγραφή'])}",
-    )
+    offer_labels = build_labels(filtered, "_id", lambda row: f"{safe_text(row['Πάροχος'])} | {safe_text(row['Περιγραφή'])}")
     offer_ids = list(offer_labels.keys())
-
     if not offer_ids:
-        st.warning("Δεν βρέθηκαν έγκυρες προσφορές.")
         return
 
     selected_id = st.selectbox(
@@ -733,57 +895,90 @@ def render_offers(df_off: pd.DataFrame):
     )
 
     row_df = df_off[df_off["_id"].astype(str) == str(selected_id)]
-    if row_df.empty:
-        st.warning("Η επιλεγμένη προσφορά δεν βρέθηκε. Δοκίμασε refresh.")
-        return
+    if not row_df.empty:
+        row = row_df.iloc[0]
 
-    row = row_df.iloc[0]
+        with st.expander("✏️ Edit προσφοράς"):
+            with st.form("offer_edit_form"):
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    new_provider = st.text_input("Πάροχος", value=safe_text(row["Πάροχος"]))
+                    new_category = st.selectbox("Κατηγορία", OFFER_CATEGORIES, index=default_index(OFFER_CATEGORIES, safe_text(row["Κατηγορία"])))
+                with c2:
+                    new_description = st.text_input("Περιγραφή", value=safe_text(row["Περιγραφή"]))
+                with c3:
+                    new_amount = st.number_input("Ποσό (€)", min_value=0.0, value=float(pd.to_numeric(pd.Series([row["Ποσό"]]), errors="coerce").fillna(0).iloc[0]), step=10.0)
+                new_notes = st.text_input("Σημειώσεις", value=safe_text(row["Σημειώσεις"]))
 
-    with st.expander("✏️ Edit προσφοράς"):
-        with st.form("offer_edit_form"):
+                if st.form_submit_button("Αποθήκευση αλλαγών") and new_provider.strip():
+                    updated_df = update_row_by_id(
+                        df_off,
+                        selected_id,
+                        {
+                            "Πάροχος": new_provider.strip(),
+                            "Περιγραφή": new_description.strip(),
+                            "Ποσό": new_amount,
+                            "Κατηγορία": new_category,
+                            "Σημειώσεις": new_notes.strip(),
+                        },
+                        OFFER_COLUMNS,
+                    )
+                    if safe_write(SHEET_OFFERS, updated_df):
+                        st.success("Η προσφορά ενημερώθηκε.")
+                        st.rerun()
+
+        if st.button("🗑️ Διαγραφή προσφοράς", key="delete_offer_btn"):
+            updated_df = delete_row_by_id(df_off, selected_id)
+            if safe_write(SHEET_OFFERS, updated_df):
+                st.success("Η προσφορά διαγράφηκε.")
+                st.rerun()
+
+    st.markdown("### Σύγκριση προσφορών")
+    if len(df_off) >= 2:
+        compare_options = build_labels(
+            df_off,
+            "_id",
+            lambda row: f"{safe_text(row['Πάροχος'])} | {safe_text(row['Περιγραφή'])} | {format_currency(pd.to_numeric(pd.Series([row['Ποσό']]), errors='coerce').fillna(0).iloc[0])}",
+        )
+        compare_ids = list(compare_options.keys())
+
+        col1, col2 = st.columns(2)
+        with col1:
+            offer_a = st.selectbox("Προσφορά Α", options=compare_ids, format_func=lambda rid: compare_options.get(rid, "Άγνωστη προσφορά"), key="compare_offer_a")
+        with col2:
+            offer_b = st.selectbox("Προσφορά Β", options=compare_ids, format_func=lambda rid: compare_options.get(rid, "Άγνωστη προσφορά"), key="compare_offer_b")
+
+        if offer_a != offer_b:
+            row_a = df_off[df_off["_id"].astype(str) == str(offer_a)].iloc[0]
+            row_b = df_off[df_off["_id"].astype(str) == str(offer_b)].iloc[0]
+
+            amount_a = float(pd.to_numeric(pd.Series([row_a["Ποσό"]]), errors="coerce").fillna(0).iloc[0])
+            amount_b = float(pd.to_numeric(pd.Series([row_b["Ποσό"]]), errors="coerce").fillna(0).iloc[0])
+
+            diff = abs(amount_a - amount_b)
+            cheaper = safe_text(row_a["Πάροχος"]) if amount_a < amount_b else safe_text(row_b["Πάροχος"])
+            percent = (diff / max(amount_a, amount_b) * 100) if max(amount_a, amount_b) > 0 else 0
+
             c1, c2, c3 = st.columns(3)
-            with c1:
-                new_provider = st.text_input("Πάροχος", value=safe_text(row["Πάροχος"]))
-                new_category = st.selectbox("Κατηγορία", OFFER_CATEGORIES, index=default_index(OFFER_CATEGORIES, safe_text(row["Κατηγορία"])))
-            with c2:
-                new_description = st.text_input("Περιγραφή", value=safe_text(row["Περιγραφή"]))
-            with c3:
-                new_amount = st.number_input(
-                    "Ποσό (€)",
-                    min_value=0.0,
-                    value=float(pd.to_numeric(pd.Series([row["Ποσό"]]), errors="coerce").fillna(0).iloc[0]),
-                    step=10.0,
-                )
-            new_notes = st.text_input("Σημειώσεις", value=safe_text(row["Σημειώσεις"]))
-            save_btn = st.form_submit_button("Αποθήκευση αλλαγών")
+            c1.metric("Προσφορά Α", format_currency(amount_a))
+            c2.metric("Προσφορά Β", format_currency(amount_b))
+            c3.metric("Διαφορά", f"{diff:,.2f} € ({percent:.1f}%)")
 
-            if save_btn and new_provider.strip():
-                updated_df = update_row_by_id(
-                    df_off,
-                    selected_id,
-                    {
-                        "Πάροχος": new_provider.strip(),
-                        "Περιγραφή": new_description.strip(),
-                        "Ποσό": new_amount,
-                        "Κατηγορία": new_category,
-                        "Σημειώσεις": new_notes.strip(),
-                    },
-                    OFFER_COLUMNS,
-                )
-                if safe_write(SHEET_OFFERS, updated_df):
-                    st.success("Η προσφορά ενημερώθηκε.")
-                    st.rerun()
+            st.success(f"Φθηνότερη προσφορά: {cheaper}")
 
-    if st.button("🗑️ Διαγραφή προσφοράς", key="delete_offer_btn"):
-        updated_df = delete_row_by_id(df_off, selected_id)
-        if safe_write(SHEET_OFFERS, updated_df):
-            st.success("Η προσφορά διαγράφηκε.")
-            st.rerun()
+            comparison_df = pd.DataFrame([
+                {"Πεδίο": "Πάροχος", "Προσφορά Α": safe_text(row_a["Πάροχος"]), "Προσφορά Β": safe_text(row_b["Πάροχος"])},
+                {"Πεδίο": "Περιγραφή", "Προσφορά Α": safe_text(row_a["Περιγραφή"]), "Προσφορά Β": safe_text(row_b["Περιγραφή"])},
+                {"Πεδίο": "Κατηγορία", "Προσφορά Α": safe_text(row_a["Κατηγορία"]), "Προσφορά Β": safe_text(row_b["Κατηγορία"])},
+                {"Πεδίο": "Σημειώσεις", "Προσφορά Α": safe_text(row_a["Σημειώσεις"]), "Προσφορά Β": safe_text(row_b["Σημειώσεις"])},
+            ])
+            st.dataframe(comparison_df, use_container_width=True)
+    else:
+        st.info("Χρειάζονται τουλάχιστον 2 προσφορές για σύγκριση.")
 
 
 def render_analytics(df_exp: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.DataFrame):
     st.subheader("📊 Αναλύσεις")
-
     left, right = st.columns(2)
 
     with left:
@@ -833,7 +1028,6 @@ def render_analytics(df_exp: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.Dat
 
 def render_loan():
     st.subheader("🏦 Υπολογιστής Δόσης")
-
     principal = st.number_input("Κεφάλαιο (€)", min_value=0.0, value=10000.0)
     annual_rate = st.number_input("Ετήσιο Επιτόκιο (%)", min_value=0.0, value=4.5)
     months = st.number_input("Μήνες Εξόφλησης", min_value=1, value=60)
@@ -855,7 +1049,6 @@ def render_loan():
 
 def render_calculator():
     st.subheader("🧮 Calculator")
-
     mode = st.selectbox("Τύπος υπολογισμού", ["Πλακάκια", "Χρώματα"])
 
     if mode == "Πλακάκια":
@@ -863,18 +1056,15 @@ def render_calculator():
         width = st.number_input("Πλάτος πλακιδίου (cm)", min_value=0.1, value=60.0)
         height = st.number_input("Ύψος πλακιδίου (cm)", min_value=0.1, value=120.0)
         waste = st.number_input("Ποσοστό φύρας (%)", min_value=0.0, value=10.0)
-
         tile_area = (width * height) / 10000
         pieces = area / tile_area if tile_area > 0 else 0
         pieces = int(pieces * (1 + waste / 100)) + 1
-
         st.metric("Τεμάχια που θα χρειαστείς", pieces)
 
     elif mode == "Χρώματα":
         wall_area = st.number_input("m² Τοίχου", min_value=0.0, value=50.0)
         coats = st.number_input("Χέρια", min_value=1, value=2)
         coverage = st.number_input("Απόδοση (m²/λίτρο)", min_value=1.0, value=12.0)
-
         liters = (wall_area * coats) / coverage
         st.metric("Λίτρα χρώματος", f"{liters:.1f} L")
 
@@ -908,4 +1098,5 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
 
