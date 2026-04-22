@@ -1,24 +1,16 @@
-import json
-import re
-import tempfile
+import base64
+import io
 import uuid
 from datetime import datetime
 
 import pandas as pd
-import pdfplumber
 import plotly.express as px
 import streamlit as st
-from openai import OpenAI
 from PIL import Image
 from streamlit_gsheets import GSheetsConnection
 
-try:
-    import pytesseract
-except Exception:
-    pytesseract = None
-
 st.set_page_config(
-    page_title="Renovation Manager V4.2",
+    page_title="Renovation Manager V5.1",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -33,49 +25,42 @@ st.markdown(
             linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
     }
     .block-container {
-        padding-top: 1.6rem;
+        padding-top: 1.4rem;
         padding-bottom: 2rem;
-        max-width: 1450px;
+        max-width: 1500px;
     }
     .hero {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #334155 100%);
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
         color: white;
         padding: 30px 32px;
-        border-radius: 24px;
-        margin-bottom: 18px;
-        box-shadow: 0 14px 36px rgba(15, 23, 42, 0.22);
+        border-radius: 26px;
+        margin-bottom: 20px;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.25);
         border: 1px solid rgba(255,255,255,0.06);
     }
     .hero h1 {
         margin: 0;
-        font-size: 2.5rem;
-        line-height: 1.1;
+        font-size: 2.6rem;
+        line-height: 1.05;
     }
     .hero p {
         margin: 10px 0 0 0;
-        color: rgba(255,255,255,0.84);
+        color: rgba(255,255,255,0.86);
         font-size: 1rem;
     }
     .mini-card {
-        background: rgba(255,255,255,0.94);
+        background: rgba(255,255,255,0.96);
         border: 1px solid rgba(15,23,42,0.05);
-        border-radius: 18px;
-        padding: 14px 16px;
-        box-shadow: 0 8px 22px rgba(15,23,42,0.06);
-        margin-bottom: 12px;
+        border-radius: 20px;
+        padding: 16px 18px;
+        box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+        margin-bottom: 14px;
     }
     .section-title {
         font-size: 1.08rem;
         font-weight: 700;
-        margin-bottom: 8px;
+        margin-bottom: 10px;
         color: #0f172a;
-    }
-    div[data-testid="stMetric"] {
-        background: rgba(255,255,255,0.96);
-        border-radius: 18px;
-        padding: 14px;
-        box-shadow: 0 10px 24px rgba(15,23,42,0.08);
-        border-top: 4px solid #D4AF37;
     }
     .maker {
         margin-top: 24px;
@@ -86,6 +71,32 @@ st.markdown(
         color: #334155;
         font-size: 0.95rem;
     }
+    .gallery-note {
+        padding: 10px 12px;
+        background: rgba(255,255,255,0.88);
+        border-radius: 12px;
+        border: 1px solid rgba(15,23,42,0.05);
+        margin-top: 8px;
+        margin-bottom: 12px;
+    }
+    .room-badge {
+        display: inline-block;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #e2e8f0;
+        color: #0f172a;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-right: 8px;
+        margin-bottom: 8px;
+    }
+    div[data-testid="stMetric"] {
+        background: rgba(255,255,255,0.98);
+        border-radius: 18px;
+        padding: 14px;
+        box-shadow: 0 10px 24px rgba(15,23,42,0.08);
+        border-top: 4px solid #D4AF37;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -94,8 +105,8 @@ st.markdown(
 st.markdown(
     """
     <div class="hero">
-        <h1>🏗️ Renovation Manager V4.2</h1>
-        <p>Διαχείριση εξόδων, εργασιών, προσφορών, budget και έξυπνη εισαγωγή προσφορών από εικόνα/PDF.</p>
+        <h1>🏗️ Renovation Manager V5.1</h1>
+        <p>Οικονομική παρακολούθηση, εργασίες, προσφορές και οπτική πρόοδος ανακαίνισης με gallery εικόνων.</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -104,12 +115,14 @@ st.markdown(
 SHEET_EXPENSES = "Expenses"
 SHEET_TASKS = "Progress"
 SHEET_OFFERS = "Offers"
+SHEET_GALLERY = "Gallery"
 
 MENU_OPTIONS = [
     "🏠 Dashboard",
     "💰 Έξοδα",
     "📋 Εργασίες",
     "💼 Προσφορές",
+    "📸 Gallery",
     "📊 Αναλύσεις",
     "🏦 Δάνειο",
     "🧮 Calculator",
@@ -118,6 +131,7 @@ MENU_OPTIONS = [
 EXPENSE_COLUMNS = ["_id", "Ημερομηνία", "Κατηγορία", "Είδος", "Ποσό", "Πληρωτής", "Σημειώσεις"]
 TASK_COLUMNS = ["_id", "Εργασία", "Κατάσταση", "Κόστος", "Προτεραιότητα", "Ανάθεση", "Σημειώσεις"]
 OFFER_COLUMNS = ["_id", "Πάροχος", "Περιγραφή", "Ποσό", "Κατηγορία", "Σημειώσεις"]
+GALLERY_COLUMNS = ["_id", "Χώρος", "Τίτλος", "Τύπος", "Image_URL", "Image_Data", "Σημειώσεις"]
 
 EXPENSE_CATEGORIES = ["Υδραυλικά", "Ηλεκτρολογικά", "Πλακάκια", "Κουζίνα", "Βάψιμο", "Κουφώματα", "Μπάνιο", "Άλλο"]
 EXPENSE_TYPES = ["Αμοιβή", "Υλικά"]
@@ -128,6 +142,9 @@ TASK_PRIORITIES = ["Χαμηλή", "Μεσαία", "Υψηλή"]
 
 OFFER_CATEGORIES = ["Υδραυλικά", "Ηλεκτρολογικά", "Πλακάκια", "Κουζίνα", "Βάψιμο", "Μπάνιο", "Άλλο"]
 
+ROOMS = ["Κουζίνα", "Μπάνιο", "Σαλόνι", "Υπνοδωμάτιο", "Μπαλκόνι", "Διάδρομος", "Άλλο"]
+IMAGE_TYPES = ["Before", "After", "Progress", "Material"]
+
 PLOTLY_TEMPLATE = "plotly_white"
 CHART_COLORS = ["#D4AF37", "#1E293B", "#38BDF8", "#22C55E", "#F97316", "#EF4444", "#8B5CF6"]
 
@@ -137,16 +154,7 @@ def get_connection():
     return st.connection("gsheets", type=GSheetsConnection)
 
 
-@st.cache_resource
-def get_openai_client():
-    api_key = st.secrets.get("OPENAI_API_KEY", "")
-    if not api_key:
-        return None
-    return OpenAI(api_key=api_key)
-
-
 conn = get_connection()
-ai_client = get_openai_client()
 
 
 def empty_df(columns):
@@ -201,15 +209,6 @@ def append_row(df: pd.DataFrame, row_data: dict, columns: list[str]) -> pd.DataF
     current = ensure_columns(df, columns)
     new_row = ensure_columns(pd.DataFrame([row_data]), columns)
     return pd.concat([current, new_row], ignore_index=True)
-
-
-def update_row_by_id(df: pd.DataFrame, row_id: str, new_data: dict, columns: list[str]) -> pd.DataFrame:
-    updated = ensure_columns(df, columns).copy()
-    mask = updated["_id"].astype(str) == str(row_id)
-    if mask.any():
-        for key, value in new_data.items():
-            updated.loc[mask, key] = value
-    return updated
 
 
 def delete_row_by_id(df: pd.DataFrame, row_id: str) -> pd.DataFrame:
@@ -294,359 +293,49 @@ def safe_text(value, fallback=""):
     return str(value)
 
 
-def build_labels(df: pd.DataFrame, id_col: str, label_builder):
-    labels = {}
-    if df.empty or id_col not in df.columns:
-        return labels
-    for _, row in df.iterrows():
-        row_id = safe_text(row.get(id_col, ""))
-        if row_id:
-            labels[row_id] = label_builder(row)
-    return labels
+def image_to_base64(uploaded_file, max_size=(1200, 1200), quality=72) -> str:
+    image = Image.open(uploaded_file).convert("RGB")
+    image.thumbnail(max_size)
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG", quality=quality, optimize=True)
+    return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
-def parse_json_text(text: str) -> dict:
-    text = text.strip()
-    try:
-        return json.loads(text)
-    except Exception:
-        start = text.find("{")
-        end = text.rfind("}")
-        if start != -1 and end != -1 and end > start:
-            return json.loads(text[start:end + 1])
-        raise ValueError("Δεν βρέθηκε έγκυρο JSON στην απάντηση.")
+def image_source_from_row(row: pd.Series) -> str | None:
+    image_url = safe_text(row.get("Image_URL", ""))
+    image_data = safe_text(row.get("Image_Data", ""))
+
+    if image_url:
+        return image_url
+    if image_data:
+        return f"data:image/jpeg;base64,{image_data}"
+    return None
 
 
-def classify_offer_category(text: str) -> str:
-    t = text.lower()
-    mapping = {
-        "Υδραυλικά": ["υδραυ", "σιφον", "μπαταρ", "σωλην", "αποχετ"],
-        "Ηλεκτρολογικά": ["ηλεκτρο", "καλωδ", "πινακ", "ρευμα", "φωτισ"],
-        "Πλακάκια": ["πλακα", "αρμο", "κεραμ"],
-        "Κουζίνα": ["κουζιν", "ντουλαπ", "παγκος"],
-        "Βάψιμο": ["βαψ", "χρωμ", "στοκος"],
-        "Μπάνιο": ["μπαν", "λεκαν", "ντουζ", "καζανα"],
-    }
-    for category, keywords in mapping.items():
-        if any(k in t for k in keywords):
-            return category
-    return "Άλλο"
-
-
-def extract_amount_from_text(text: str) -> float:
-    normalized = text.replace(",", ".")
-    matches = re.findall(r"(\d+(?:\.\d{1,2})?)\s*(?:€|eur|euro)?", normalized, flags=re.IGNORECASE)
-    values = []
-    for m in matches:
-        try:
-            values.append(float(m))
-        except Exception:
-            pass
-    return max(values) if values else 0.0
-
-
-def extract_provider_from_text(text: str) -> str:
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    if not lines:
-        return ""
-    return lines[0][:80]
-
-
-def extract_description_from_text(text: str) -> str:
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    if len(lines) >= 2:
-        return lines[1][:120]
-    if lines:
-        return lines[0][:120]
-    return ""
-
-
-def extract_offer_from_text_basic(text: str) -> dict:
-    provider = extract_provider_from_text(text)
-    description = extract_description_from_text(text)
-    amount = extract_amount_from_text(text)
-    category = classify_offer_category(text)
-    short_text = " ".join(text.split())[:1200]
-
-    return {
-        "Πάροχος": provider,
-        "Περιγραφή": description,
-        "Ποσό": amount,
-        "Κατηγορία": category,
-        "Σημειώσεις": f"OCR text: {short_text}",
-    }
-
-
-def extract_offer_from_image_with_ai(uploaded_file) -> dict:
-    if ai_client is None:
-        raise ValueError("Δεν έχει οριστεί OPENAI_API_KEY στα secrets.")
-
-    file_bytes = uploaded_file.getvalue()
-    suffix = ".jpg"
-    lower = uploaded_file.name.lower()
-    if lower.endswith(".png"):
-        suffix = ".png"
-    elif lower.endswith(".webp"):
-        suffix = ".webp"
-    elif lower.endswith(".jpeg"):
-        suffix = ".jpeg"
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        tmp.write(file_bytes)
-        tmp_path = tmp.name
-
-    with open(tmp_path, "rb") as f:
-        uploaded = ai_client.files.create(file=f, purpose="vision")
-
-    response = ai_client.responses.create(
-        model="gpt-4.1-mini",
-        input=[{
-            "role": "user",
-            "content": [
-                {
-                    "type": "input_text",
-                    "text": """
-Διάβασε την προσφορά από την εικόνα και επέστρεψε ΜΟΝΟ έγκυρο JSON.
-Αν κάποιο πεδίο λείπει, βάλε κενό string ή 0.
-
-{
-  "provider": "",
-  "description": "",
-  "amount": 0,
-  "category": "",
-  "notes": "",
-  "vat": "",
-  "date": "",
-  "line_items": [
-    {
-      "title": "",
-      "amount": 0
-    }
-  ]
-}
-""",
-                },
-                {
-                    "type": "input_image",
-                    "file_id": uploaded.id,
-                },
-            ],
-        }],
-        text={"format": {"type": "json_object"}},
-    )
-
-    data = parse_json_text(response.output_text)
-
-    return {
-        "Πάροχος": str(data.get("provider", "")).strip(),
-        "Περιγραφή": str(data.get("description", "")).strip(),
-        "Ποσό": float(data.get("amount", 0) or 0),
-        "Κατηγορία": str(data.get("category", "")).strip() or "Άλλο",
-        "Σημειώσεις": (
-            f"Ημ/νία: {data.get('date', '')} | "
-            f"ΦΠΑ: {data.get('vat', '')} | "
-            f"AI notes: {data.get('notes', '')} | "
-            f"Line items: {data.get('line_items', [])}"
-        ).strip(),
-    }
-
-
-def extract_offer_from_pdf_with_ai(uploaded_file) -> dict:
-    if ai_client is None:
-        raise ValueError("Δεν έχει οριστεί OPENAI_API_KEY στα secrets.")
-
-    file_bytes = uploaded_file.getvalue()
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        tmp.write(file_bytes)
-        tmp_path = tmp.name
-
-    with open(tmp_path, "rb") as f:
-        uploaded = ai_client.files.create(file=f, purpose="user_data")
-
-    response = ai_client.responses.create(
-        model="gpt-4.1-mini",
-        input=[{
-            "role": "user",
-            "content": [
-                {"type": "input_file", "file_id": uploaded.id},
-                {
-                    "type": "input_text",
-                    "text": """
-Διάβασε το PDF της προσφοράς και επέστρεψε ΜΟΝΟ έγκυρο JSON.
-Αν κάποιο πεδίο λείπει, βάλε κενό string ή 0.
-
-{
-  "provider": "",
-  "description": "",
-  "amount": 0,
-  "category": "",
-  "notes": "",
-  "vat": "",
-  "date": "",
-  "line_items": [
-    {
-      "title": "",
-      "amount": 0
-    }
-  ]
-}
-""",
-                },
-            ],
-        }],
-        text={"format": {"type": "json_object"}},
-    )
-
-    data = parse_json_text(response.output_text)
-
-    return {
-        "Πάροχος": str(data.get("provider", "")).strip(),
-        "Περιγραφή": str(data.get("description", "")).strip(),
-        "Ποσό": float(data.get("amount", 0) or 0),
-        "Κατηγορία": str(data.get("category", "")).strip() or "Άλλο",
-        "Σημειώσεις": (
-            f"Ημ/νία: {data.get('date', '')} | "
-            f"ΦΠΑ: {data.get('vat', '')} | "
-            f"AI notes: {data.get('notes', '')} | "
-            f"Line items: {data.get('line_items', [])}"
-        ).strip(),
-    }
-
-
-def extract_offer_from_pdf_free(uploaded_file) -> dict:
-    text_parts = []
-    with pdfplumber.open(uploaded_file) as pdf:
-        for page in pdf.pages:
-            page_text = page.extract_text() or ""
-            if page_text.strip():
-                text_parts.append(page_text)
-
-    full_text = "\n".join(text_parts).strip()
-    if not full_text:
-        return {
-            "Πάροχος": "",
-            "Περιγραφή": uploaded_file.name,
-            "Ποσό": 0.0,
-            "Κατηγορία": "Άλλο",
-            "Σημειώσεις": "Δεν βρέθηκε αναγνώσιμο κείμενο στο PDF. Συμπλήρωσε χειροκίνητα τα στοιχεία.",
-        }
-
-    return extract_offer_from_text_basic(full_text)
-
-
-def extract_offer_from_image_free(uploaded_file) -> dict:
-    if pytesseract is None:
-        return {
-            "Πάροχος": "",
-            "Περιγραφή": uploaded_file.name,
-            "Ποσό": 0.0,
-            "Κατηγορία": "Άλλο",
-            "Σημειώσεις": "Δεν ήταν διαθέσιμο δωρεάν OCR εικόνας στο περιβάλλον. Συμπλήρωσε χειροκίνητα τα πεδία.",
-        }
-
-    try:
-        image = Image.open(uploaded_file)
-        text = pytesseract.image_to_string(image, lang="eng+ell")
-        if text.strip():
-            return extract_offer_from_text_basic(text)
-    except Exception:
-        pass
-
-    return {
-        "Πάροχος": "",
-        "Περιγραφή": uploaded_file.name,
-        "Ποσό": 0.0,
-        "Κατηγορία": "Άλλο",
-        "Σημειώσεις": "Η εικόνα δεν αναγνωρίστηκε αυτόματα. Συμπλήρωσε χειροκίνητα τα στοιχεία.",
-    }
-
-
-def extract_offer_with_fallback(uploaded_file) -> tuple[dict, str]:
-    is_pdf = uploaded_file.type == "application/pdf"
-
-    if ai_client is not None:
-        try:
-            if is_pdf:
-                return extract_offer_from_pdf_with_ai(uploaded_file), "AI"
-            return extract_offer_from_image_with_ai(uploaded_file), "AI"
-        except Exception as e:
-            err = str(e)
-            if "insufficient_quota" not in err and "429" not in err:
-                raise
-
-    if is_pdf:
-        return extract_offer_from_pdf_free(uploaded_file), "FREE_PDF_OCR"
-
-    return extract_offer_from_image_free(uploaded_file), "FREE_IMAGE_OCR"
+def room_progress_summary(df_gal: pd.DataFrame) -> pd.DataFrame:
+    if df_gal.empty:
+        return pd.DataFrame(columns=["Χώρος", "Πρόοδος"])
+    rows = []
+    for room in sorted(df_gal["Χώρος"].dropna().astype(str).unique()):
+        room_df = df_gal[df_gal["Χώρος"] == room]
+        before_count = len(room_df[room_df["Τύπος"] == "Before"])
+        after_count = len(room_df[room_df["Τύπος"] == "After"])
+        progress_count = len(room_df[room_df["Τύπος"] == "Progress"])
+        score = min(100, after_count * 60 + progress_count * 20 + before_count * 5)
+        rows.append({"Χώρος": room, "Πρόοδος": score})
+    return pd.DataFrame(rows)
 
 
 df_expenses = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
 df_tasks = safe_read(SHEET_TASKS, TASK_COLUMNS)
 df_offers = safe_read(SHEET_OFFERS, OFFER_COLUMNS)
+df_gallery = safe_read(SHEET_GALLERY, GALLERY_COLUMNS)
 
 
-def filter_expenses(df: pd.DataFrame) -> pd.DataFrame:
-    filtered = df.copy()
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        category = st.selectbox("Κατηγορία", ["Όλες"] + EXPENSE_CATEGORIES, key="exp_cat_filter")
-    with c2:
-        expense_type = st.selectbox("Είδος", ["Όλα"] + EXPENSE_TYPES, key="exp_type_filter")
-    with c3:
-        payer = st.selectbox("Πληρωτής", ["Όλοι"] + PAYERS, key="exp_payer_filter")
-    with c4:
-        search = st.text_input("Αναζήτηση σημειώσεων", key="exp_search").strip().lower()
-
-    if category != "Όλες":
-        filtered = filtered[filtered["Κατηγορία"] == category]
-    if expense_type != "Όλα":
-        filtered = filtered[filtered["Είδος"] == expense_type]
-    if payer != "Όλοι":
-        filtered = filtered[filtered["Πληρωτής"] == payer]
-    if search:
-        filtered = filtered[filtered["Σημειώσεις"].astype(str).str.lower().str.contains(search, na=False)]
-    return filtered
-
-
-def filter_tasks(df: pd.DataFrame) -> pd.DataFrame:
-    filtered = df.copy()
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        status = st.selectbox("Κατάσταση", ["Όλες"] + TASK_STATUSES, key="task_status_filter")
-    with c2:
-        priority = st.selectbox("Προτεραιότητα", ["Όλες"] + TASK_PRIORITIES, key="task_priority_filter")
-    with c3:
-        search = st.text_input("Αναζήτηση εργασίας", key="task_search").strip().lower()
-
-    if status != "Όλες":
-        filtered = filtered[filtered["Κατάσταση"] == status]
-    if priority != "Όλες":
-        filtered = filtered[filtered["Προτεραιότητα"] == priority]
-    if search:
-        filtered = filtered[filtered["Εργασία"].astype(str).str.lower().str.contains(search, na=False)]
-    return filtered
-
-
-def filter_offers(df: pd.DataFrame) -> pd.DataFrame:
-    filtered = df.copy()
-    c1, c2 = st.columns(2)
-    with c1:
-        category = st.selectbox("Κατηγορία", ["Όλες"] + OFFER_CATEGORIES, key="offer_cat_filter")
-    with c2:
-        search = st.text_input("Αναζήτηση παρόχου", key="offer_search").strip().lower()
-
-    if category != "Όλες":
-        filtered = filtered[filtered["Κατηγορία"] == category]
-    if search:
-        filtered = filtered[filtered["Πάροχος"].astype(str).str.lower().str.contains(search, na=False)]
-    return filtered
-
-
-def render_dashboard(df_exp: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.DataFrame):
+def render_dashboard(df_exp: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.DataFrame, df_gal: pd.DataFrame):
     st.subheader("🏠 Dashboard")
-    budget = st.number_input("💼 Συνολικό Budget (€)", min_value=0.0, value=30000.0, step=1000.0)
 
+    budget = st.number_input("💼 Συνολικό Budget (€)", min_value=0.0, value=30000.0, step=1000.0)
     spent = money_series(df_exp, "Ποσό").sum()
     remaining = budget - spent
     usage = (spent / budget * 100) if budget > 0 else 0.0
@@ -664,10 +353,11 @@ def render_dashboard(df_exp: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.Dat
     c3.metric("📊 Χρήση Budget", f"{usage:.1f}%")
     c4.metric("🏆 Καλύτερη Προσφορά", best_offer_display)
 
-    c5, c6, c7 = st.columns(3)
+    c5, c6, c7, c8 = st.columns(4)
     c5.metric("📋 Σύνολο Εργασιών", tasks_total)
     c6.metric("🛠️ Σε Εξέλιξη", tasks_doing)
     c7.metric("✅ Ολοκληρωμένες", tasks_done)
+    c8.metric("📸 Φωτογραφίες", len(df_gal))
 
     st.progress(min(max(usage / 100, 0.0), 1.0))
     if usage > 100:
@@ -677,9 +367,34 @@ def render_dashboard(df_exp: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.Dat
     else:
         st.success("Το budget είναι σε ελεγχόμενο επίπεδο.")
 
-    col_left, col_right = st.columns(2)
+    left, right = st.columns([1.2, 1])
 
-    with col_left:
+    with left:
+        card_start("Visual Progress")
+        if not df_gal.empty:
+            progress_imgs = df_gal[df_gal["Τύπος"].isin(["Progress", "After", "Before"])].copy()
+            if not progress_imgs.empty:
+                latest = progress_imgs.tail(1).iloc[0]
+                src = image_source_from_row(latest)
+                if src:
+                    st.image(src, use_container_width=True)
+                st.markdown(
+                    f"""
+                    <div class="gallery-note">
+                    <strong>{safe_text(latest["Χώρος"])}</strong><br>
+                    {safe_text(latest["Τίτλος"])}<br>
+                    <small>{safe_text(latest["Σημειώσεις"])}</small>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.info("Δεν υπάρχουν φωτογραφίες προόδου.")
+        else:
+            st.info("Δεν υπάρχουν φωτογραφίες.")
+        card_end()
+
+    with right:
         card_start("Έξοδα ανά Κατηγορία")
         if not df_exp.empty:
             temp = df_exp.copy()
@@ -691,17 +406,9 @@ def render_dashboard(df_exp: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.Dat
             st.info("Δεν υπάρχουν έξοδα.")
         card_end()
 
-        card_start("Πρόσφατα Έξοδα")
-        if not df_exp.empty:
-            recent = df_exp.copy()
-            recent["Ημερομηνία_sort"] = parse_date_series(recent, "Ημερομηνία")
-            recent = recent.sort_values("Ημερομηνία_sort", ascending=False).head(5)
-            show_table(recent.drop(columns=["Ημερομηνία_sort"]), hide_id=True)
-        else:
-            st.info("Δεν υπάρχουν έξοδα.")
-        card_end()
+    b1, b2, b3 = st.columns(3)
 
-    with col_right:
+    with b1:
         card_start("Αμοιβή / Υλικά")
         if not df_exp.empty:
             temp = df_exp.copy()
@@ -713,22 +420,33 @@ def render_dashboard(df_exp: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.Dat
             st.info("Δεν υπάρχουν δεδομένα.")
         card_end()
 
-        card_start("Εργασίες που Εκκρεμούν")
-        if not df_task.empty:
-            pending = df_task[df_task["Κατάσταση"] != "Done"].copy()
-            if pending.empty:
-                st.success("Όλες οι εργασίες έχουν ολοκληρωθεί.")
-            else:
-                show_table(pending.head(8), hide_id=True)
+    with b2:
+        card_start("Πρόοδος ανά Χώρο")
+        room_summary = room_progress_summary(df_gal)
+        if not room_summary.empty:
+            st.dataframe(room_summary, use_container_width=True)
+            st.plotly_chart(make_bar_chart(room_summary, "Χώρος", "Πρόοδος", "Οπτική πρόοδος"), use_container_width=True)
         else:
-            st.info("Δεν υπάρχουν εργασίες.")
+            st.info("Δεν υπάρχουν ακόμα στοιχεία gallery.")
+        card_end()
+
+    with b3:
+        card_start("Πρόσφατες Εικόνες")
+        if not df_gal.empty:
+            preview = df_gal.tail(3)
+            for _, row in preview.iterrows():
+                src = image_source_from_row(row)
+                if src:
+                    st.image(src, use_container_width=True)
+                    st.caption(f"{safe_text(row['Χώρος'])} - {safe_text(row['Τίτλος'])}")
+        else:
+            st.info("Δεν υπάρχουν εικόνες.")
         card_end()
 
 
 def render_expenses(df_exp: pd.DataFrame):
     st.subheader("💰 Έξοδα")
-
-    with st.expander("➕ Νέα καταχώρηση εξόδου"):
+    with st.expander("➕ Νέο έξοδο"):
         with st.form("expense_add_form", clear_on_submit=True):
             c1, c2, c3 = st.columns(3)
             with c1:
@@ -757,74 +475,11 @@ def render_expenses(df_exp: pd.DataFrame):
                 if safe_write(SHEET_EXPENSES, updated_df):
                     st.success("Το έξοδο αποθηκεύτηκε.")
                     st.rerun()
-
-    st.markdown("### Φίλτρα")
-    filtered = filter_expenses(df_exp)
-    show_table(filtered)
-
-    if filtered.empty:
-        return
-
-    expense_labels = build_labels(
-        filtered,
-        "_id",
-        lambda row: f"{safe_text(row['Ημερομηνία'])} | {safe_text(row['Κατηγορία'])} | {safe_text(row['Είδος'])} | {format_currency(pd.to_numeric(pd.Series([row['Ποσό']]), errors='coerce').fillna(0).iloc[0])}",
-    )
-    expense_ids = list(expense_labels.keys())
-    if not expense_ids:
-        return
-
-    selected_id = st.selectbox(
-        "Επιλογή εγγραφής για edit / delete",
-        options=expense_ids,
-        format_func=lambda rid: expense_labels.get(rid, "Άγνωστη εγγραφή"),
-    )
-
-    row_df = df_exp[df_exp["_id"].astype(str) == str(selected_id)]
-    if row_df.empty:
-        return
-    row = row_df.iloc[0]
-
-    with st.expander("✏️ Edit εξόδου"):
-        with st.form("expense_edit_form"):
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                new_date = st.text_input("Ημερομηνία", value=safe_text(row["Ημερομηνία"]))
-                new_category = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES, index=default_index(EXPENSE_CATEGORIES, safe_text(row["Κατηγορία"])))
-            with c2:
-                new_type = st.selectbox("Είδος", EXPENSE_TYPES, index=default_index(EXPENSE_TYPES, safe_text(row["Είδος"])))
-                new_payer = st.selectbox("Πληρωτής", PAYERS, index=default_index(PAYERS, safe_text(row["Πληρωτής"])))
-            with c3:
-                new_amount = st.number_input("Ποσό (€)", min_value=0.0, value=float(pd.to_numeric(pd.Series([row["Ποσό"]]), errors="coerce").fillna(0).iloc[0]), step=10.0)
-            new_notes = st.text_input("Σημειώσεις", value=safe_text(row["Σημειώσεις"]))
-            if st.form_submit_button("Αποθήκευση αλλαγών"):
-                updated_df = update_row_by_id(
-                    df_exp,
-                    selected_id,
-                    {
-                        "Ημερομηνία": new_date,
-                        "Κατηγορία": new_category,
-                        "Είδος": new_type,
-                        "Ποσό": new_amount,
-                        "Πληρωτής": new_payer,
-                        "Σημειώσεις": new_notes.strip(),
-                    },
-                    EXPENSE_COLUMNS,
-                )
-                if safe_write(SHEET_EXPENSES, updated_df):
-                    st.success("Η εγγραφή ενημερώθηκε.")
-                    st.rerun()
-
-    if st.button("🗑️ Διαγραφή εξόδου", key="delete_expense_btn"):
-        updated_df = delete_row_by_id(df_exp, selected_id)
-        if safe_write(SHEET_EXPENSES, updated_df):
-            st.success("Η εγγραφή διαγράφηκε.")
-            st.rerun()
+    show_table(df_exp)
 
 
 def render_tasks(df_task: pd.DataFrame):
     st.subheader("📋 Εργασίες")
-
     with st.expander("➕ Νέα εργασία"):
         with st.form("task_add_form", clear_on_submit=True):
             c1, c2, c3 = st.columns(3)
@@ -854,131 +509,11 @@ def render_tasks(df_task: pd.DataFrame):
                 if safe_write(SHEET_TASKS, updated_df):
                     st.success("Η εργασία αποθηκεύτηκε.")
                     st.rerun()
-
-    st.markdown("### Φίλτρα")
-    filtered = filter_tasks(df_task)
-    show_table(filtered)
-
-    if filtered.empty:
-        return
-
-    task_labels = build_labels(filtered, "_id", lambda row: f"{safe_text(row['Εργασία'])} | {safe_text(row['Κατάσταση'])}")
-    task_ids = list(task_labels.keys())
-    if not task_ids:
-        return
-
-    selected_id = st.selectbox(
-        "Επιλογή εργασίας για edit / delete",
-        options=task_ids,
-        format_func=lambda rid: task_labels.get(rid, "Άγνωστη εργασία"),
-    )
-
-    row_df = df_task[df_task["_id"].astype(str) == str(selected_id)]
-    if row_df.empty:
-        return
-    row = row_df.iloc[0]
-
-    with st.expander("✏️ Edit εργασίας"):
-        with st.form("task_edit_form"):
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                new_task = st.text_input("Εργασία", value=safe_text(row["Εργασία"]))
-                new_status = st.selectbox("Κατάσταση", TASK_STATUSES, index=default_index(TASK_STATUSES, safe_text(row["Κατάσταση"])))
-            with c2:
-                new_cost = st.number_input("Κόστος (€)", min_value=0.0, value=float(pd.to_numeric(pd.Series([row["Κόστος"]]), errors="coerce").fillna(0).iloc[0]), step=10.0)
-                new_priority = st.selectbox("Προτεραιότητα", TASK_PRIORITIES, index=default_index(TASK_PRIORITIES, safe_text(row["Προτεραιότητα"])))
-            with c3:
-                new_assignee = st.text_input("Ανάθεση", value=safe_text(row["Ανάθεση"]))
-            new_notes = st.text_input("Σημειώσεις", value=safe_text(row["Σημειώσεις"]))
-
-            if st.form_submit_button("Αποθήκευση αλλαγών") and new_task.strip():
-                updated_df = update_row_by_id(
-                    df_task,
-                    selected_id,
-                    {
-                        "Εργασία": new_task.strip(),
-                        "Κατάσταση": new_status,
-                        "Κόστος": new_cost,
-                        "Προτεραιότητα": new_priority,
-                        "Ανάθεση": new_assignee.strip(),
-                        "Σημειώσεις": new_notes.strip(),
-                    },
-                    TASK_COLUMNS,
-                )
-                if safe_write(SHEET_TASKS, updated_df):
-                    st.success("Η εργασία ενημερώθηκε.")
-                    st.rerun()
-
-    if st.button("🗑️ Διαγραφή εργασίας", key="delete_task_btn"):
-        updated_df = delete_row_by_id(df_task, selected_id)
-        if safe_write(SHEET_TASKS, updated_df):
-            st.success("Η εργασία διαγράφηκε.")
-            st.rerun()
+    show_table(df_task)
 
 
 def render_offers(df_off: pd.DataFrame):
     st.subheader("💼 Προσφορές")
-
-    st.markdown("### AI / OCR Εισαγωγή από φωτογραφία ή PDF")
-    uploaded_offer = st.file_uploader(
-        "Ανέβασε φωτογραφία ή PDF προσφοράς",
-        type=["png", "jpg", "jpeg", "webp", "pdf"],
-        key="offer_ai_upload",
-    )
-
-    if uploaded_offer is not None and st.button("🤖 Ανάλυση προσφοράς", key="analyze_offer_ai_btn"):
-        try:
-            with st.spinner("Γίνεται ανάγνωση της προσφοράς..."):
-                parsed_offer, source_mode = extract_offer_with_fallback(uploaded_offer)
-
-            parsed_offer["Σημειώσεις"] = f"[SOURCE={source_mode}] " + parsed_offer.get("Σημειώσεις", "")
-            st.session_state["ai_offer_draft"] = parsed_offer
-
-            if source_mode == "AI":
-                st.success("Η προσφορά αναγνωρίστηκε με AI.")
-            elif source_mode == "FREE_PDF_OCR":
-                st.warning("Η προσφορά αναγνωρίστηκε με δωρεάν OCR από PDF. Έλεγξε προσεκτικά τα στοιχεία.")
-            else:
-                st.warning("Δεν ήταν δυνατή η πλήρης αυτόματη ανάγνωση της εικόνας. Συμπλήρωσε χειροκίνητα τα στοιχεία που λείπουν.")
-        except Exception as e:
-            st.error(f"Αποτυχία ανάλυσης προσφοράς: {e}")
-
-    if "ai_offer_draft" in st.session_state:
-        draft = st.session_state["ai_offer_draft"]
-        with st.expander("🧾 Επιβεβαίωση αναγνωρισμένης προσφοράς", expanded=True):
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                ai_provider = st.text_input("Πάροχος", value=str(draft.get("Πάροχος", "")), key="ai_provider")
-                ai_category = st.selectbox("Κατηγορία", OFFER_CATEGORIES, index=default_index(OFFER_CATEGORIES, str(draft.get("Κατηγορία", "Άλλο"))), key="ai_category")
-            with c2:
-                ai_description = st.text_input("Περιγραφή", value=str(draft.get("Περιγραφή", "")), key="ai_description")
-            with c3:
-                ai_amount = st.number_input("Ποσό (€)", min_value=0.0, value=float(draft.get("Ποσό", 0) or 0), step=10.0, key="ai_amount")
-            ai_notes = st.text_area("Σημειώσεις", value=str(draft.get("Σημειώσεις", "")), key="ai_notes", height=140)
-
-            col_save, col_cancel = st.columns(2)
-            with col_save:
-                if st.button("💾 Αποθήκευση προσφοράς", key="save_ai_offer_btn"):
-                    updated_df = append_row(
-                        df_off,
-                        {
-                            "Πάροχος": ai_provider.strip(),
-                            "Περιγραφή": ai_description.strip(),
-                            "Ποσό": ai_amount,
-                            "Κατηγορία": ai_category,
-                            "Σημειώσεις": ai_notes.strip(),
-                        },
-                        OFFER_COLUMNS,
-                    )
-                    if safe_write(SHEET_OFFERS, updated_df):
-                        del st.session_state["ai_offer_draft"]
-                        st.success("Η προσφορά αποθηκεύτηκε.")
-                        st.rerun()
-            with col_cancel:
-                if st.button("❌ Απόρριψη", key="cancel_ai_offer_btn"):
-                    del st.session_state["ai_offer_draft"]
-                    st.rerun()
-
     with st.expander("➕ Νέα προσφορά"):
         with st.form("offer_add_form", clear_on_submit=True):
             c1, c2, c3 = st.columns(3)
@@ -1006,120 +541,161 @@ def render_offers(df_off: pd.DataFrame):
                 if safe_write(SHEET_OFFERS, updated_df):
                     st.success("Η προσφορά αποθηκεύτηκε.")
                     st.rerun()
+    show_table(df_off)
 
-    st.markdown("### Φίλτρα")
-    filtered = filter_offers(df_off)
 
-    if not filtered.empty:
-        temp = filtered.copy()
-        temp["Ποσό"] = money_series(temp, "Ποσό")
-        valid_temp = temp.dropna(subset=["Ποσό"])
-        if not valid_temp.empty:
-            best = valid_temp.sort_values("Ποσό").iloc[0]
-            st.info(f"🏆 Καλύτερη προσφορά: {safe_text(best['Πάροχος'])} ({best['Ποσό']:.2f} €)")
+def render_gallery(df_gal: pd.DataFrame):
+    st.subheader("📸 Gallery")
 
-    show_table(filtered)
+    with st.expander("➕ Νέα εικόνα", expanded=False):
+        with st.form("gallery_add_form", clear_on_submit=True):
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                room = st.selectbox("Χώρος", ROOMS)
+            with c2:
+                title = st.text_input("Τίτλος")
+            with c3:
+                image_type = st.selectbox("Τύπος", IMAGE_TYPES)
 
-    if filtered.empty:
-        st.info("Χρειάζονται τουλάχιστον 2 προσφορές για σύγκριση.")
-        return
+            uploaded_image = st.file_uploader("Ανέβασε εικόνα", type=["png", "jpg", "jpeg", "webp"], key="gallery_upload")
+            image_url = st.text_input("ή Image URL")
+            notes = st.text_input("Σημειώσεις")
 
-    offer_labels = build_labels(filtered, "_id", lambda row: f"{safe_text(row['Πάροχος'])} | {safe_text(row['Περιγραφή'])}")
-    offer_ids = list(offer_labels.keys())
-    if not offer_ids:
-        return
+            if st.form_submit_button("Αποθήκευση εικόνας"):
+                image_data = ""
+                final_url = image_url.strip()
 
-    selected_id = st.selectbox(
-        "Επιλογή προσφοράς για edit / delete",
-        options=offer_ids,
-        format_func=lambda rid: offer_labels.get(rid, "Άγνωστη προσφορά"),
-    )
+                if uploaded_image is not None:
+                    try:
+                        image_data = image_to_base64(uploaded_image)
+                    except Exception as e:
+                        st.error(f"Σφάλμα επεξεργασίας εικόνας: {e}")
+                        st.stop()
 
-    row_df = df_off[df_off["_id"].astype(str) == str(selected_id)]
-    if not row_df.empty:
-        row = row_df.iloc[0]
-
-        with st.expander("✏️ Edit προσφοράς"):
-            with st.form("offer_edit_form"):
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    new_provider = st.text_input("Πάροχος", value=safe_text(row["Πάροχος"]))
-                    new_category = st.selectbox("Κατηγορία", OFFER_CATEGORIES, index=default_index(OFFER_CATEGORIES, safe_text(row["Κατηγορία"])))
-                with c2:
-                    new_description = st.text_input("Περιγραφή", value=safe_text(row["Περιγραφή"]))
-                with c3:
-                    new_amount = st.number_input("Ποσό (€)", min_value=0.0, value=float(pd.to_numeric(pd.Series([row["Ποσό"]]), errors="coerce").fillna(0).iloc[0]), step=10.0)
-                new_notes = st.text_input("Σημειώσεις", value=safe_text(row["Σημειώσεις"]))
-
-                if st.form_submit_button("Αποθήκευση αλλαγών") and new_provider.strip():
-                    updated_df = update_row_by_id(
-                        df_off,
-                        selected_id,
+                if not final_url and not image_data:
+                    st.warning("Βάλε είτε upload εικόνας είτε Image URL.")
+                else:
+                    updated_df = append_row(
+                        df_gal,
                         {
-                            "Πάροχος": new_provider.strip(),
-                            "Περιγραφή": new_description.strip(),
-                            "Ποσό": new_amount,
-                            "Κατηγορία": new_category,
-                            "Σημειώσεις": new_notes.strip(),
+                            "Χώρος": room,
+                            "Τίτλος": title.strip(),
+                            "Τύπος": image_type,
+                            "Image_URL": final_url,
+                            "Image_Data": image_data,
+                            "Σημειώσεις": notes.strip(),
                         },
-                        OFFER_COLUMNS,
+                        GALLERY_COLUMNS,
                     )
-                    if safe_write(SHEET_OFFERS, updated_df):
-                        st.success("Η προσφορά ενημερώθηκε.")
+                    if safe_write(SHEET_GALLERY, updated_df):
+                        st.success("Η εικόνα αποθηκεύτηκε.")
                         st.rerun()
 
-        if st.button("🗑️ Διαγραφή προσφοράς", key="delete_offer_btn"):
-            updated_df = delete_row_by_id(df_off, selected_id)
-            if safe_write(SHEET_OFFERS, updated_df):
-                st.success("Η προσφορά διαγράφηκε.")
-                st.rerun()
+    if df_gal.empty:
+        st.info("Δεν υπάρχουν εικόνες ακόμα.")
+        return
 
-    st.markdown("### Σύγκριση προσφορών")
-    if len(df_off) >= 2:
-        compare_options = build_labels(
-            df_off,
-            "_id",
-            lambda row: f"{safe_text(row['Πάροχος'])} | {safe_text(row['Περιγραφή'])} | {format_currency(pd.to_numeric(pd.Series([row['Ποσό']]), errors='coerce').fillna(0).iloc[0])}",
-        )
-        compare_ids = list(compare_options.keys())
+    c1, c2 = st.columns(2)
+    with c1:
+        room_filter = st.selectbox("Φίλτρο χώρου", ["Όλοι"] + ROOMS)
+    with c2:
+        type_filter = st.selectbox("Φίλτρο τύπου", ["Όλα"] + IMAGE_TYPES)
 
-        col1, col2 = st.columns(2)
-        with col1:
-            offer_a = st.selectbox("Προσφορά Α", options=compare_ids, format_func=lambda rid: compare_options.get(rid, "Άγνωστη προσφορά"), key="compare_offer_a")
-        with col2:
-            offer_b = st.selectbox("Προσφορά Β", options=compare_ids, format_func=lambda rid: compare_options.get(rid, "Άγνωστη προσφορά"), key="compare_offer_b")
+    filtered = df_gal.copy()
+    if room_filter != "Όλοι":
+        filtered = filtered[filtered["Χώρος"] == room_filter]
+    if type_filter != "Όλα":
+        filtered = filtered[filtered["Τύπος"] == type_filter]
 
-        if offer_a != offer_b:
-            row_a_df = df_off[df_off["_id"].astype(str) == str(offer_a)]
-            row_b_df = df_off[df_off["_id"].astype(str) == str(offer_b)]
+    room_summary = room_progress_summary(filtered)
+    if not room_summary.empty:
+        st.markdown("### Rooms")
+        for _, row in room_summary.iterrows():
+            st.markdown(
+                f'<span class="room-badge">{safe_text(row["Χώρος"])}: {int(row["Πρόοδος"])}%</span>',
+                unsafe_allow_html=True,
+            )
 
-            if not row_a_df.empty and not row_b_df.empty:
-                row_a = row_a_df.iloc[0]
-                row_b = row_b_df.iloc[0]
+    tabs = st.tabs(["Gallery Grid", "Before / After", "Διαχείριση", "Δεδομένα"])
 
-                amount_a = float(pd.to_numeric(pd.Series([row_a["Ποσό"]]), errors="coerce").fillna(0).iloc[0])
-                amount_b = float(pd.to_numeric(pd.Series([row_b["Ποσό"]]), errors="coerce").fillna(0).iloc[0])
+    with tabs[0]:
+        if filtered.empty:
+            st.info("Δεν βρέθηκαν εικόνες με αυτά τα φίλτρα.")
+        else:
+            cols = st.columns(3)
+            for idx, (_, row) in enumerate(filtered.iterrows()):
+                with cols[idx % 3]:
+                    src = image_source_from_row(row)
+                    if src:
+                        st.image(src, use_container_width=True)
+                    st.markdown(
+                        f"""
+                        <div class="gallery-note">
+                        <strong>{safe_text(row["Τίτλος"])}</strong><br>
+                        Χώρος: {safe_text(row["Χώρος"])}<br>
+                        Τύπος: {safe_text(row["Τύπος"])}<br>
+                        <small>{safe_text(row["Σημειώσεις"])}</small>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
 
-                diff = abs(amount_a - amount_b)
-                cheaper = safe_text(row_a["Πάροχος"]) if amount_a < amount_b else safe_text(row_b["Πάροχος"])
-                percent = (diff / max(amount_a, amount_b) * 100) if max(amount_a, amount_b) > 0 else 0
+    with tabs[1]:
+        room_options = sorted(filtered["Χώρος"].dropna().astype(str).unique().tolist())
+        if not room_options:
+            st.info("Δεν υπάρχουν διαθέσιμες εικόνες before/after.")
+        else:
+            selected_room = st.selectbox("Επιλογή χώρου", room_options, key="before_after_room")
+            room_df = filtered[filtered["Χώρος"] == selected_room]
 
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Προσφορά Α", format_currency(amount_a))
-                c2.metric("Προσφορά Β", format_currency(amount_b))
-                c3.metric("Διαφορά", f"{diff:,.2f} € ({percent:.1f}%)")
+            before_df = room_df[room_df["Τύπος"] == "Before"]
+            after_df = room_df[room_df["Τύπος"] == "After"]
 
-                st.success(f"Φθηνότερη προσφορά: {cheaper}")
+            col_before, col_after = st.columns(2)
 
-                comparison_df = pd.DataFrame([
-                    {"Πεδίο": "Πάροχος", "Προσφορά Α": safe_text(row_a["Πάροχος"]), "Προσφορά Β": safe_text(row_b["Πάροχος"])},
-                    {"Πεδίο": "Περιγραφή", "Προσφορά Α": safe_text(row_a["Περιγραφή"]), "Προσφορά Β": safe_text(row_b["Περιγραφή"])},
-                    {"Πεδίο": "Κατηγορία", "Προσφορά Α": safe_text(row_a["Κατηγορία"]), "Προσφορά Β": safe_text(row_b["Κατηγορία"])},
-                    {"Πεδίο": "Σημειώσεις", "Προσφορά Α": safe_text(row_a["Σημειώσεις"]), "Προσφορά Β": safe_text(row_b["Σημειώσεις"])},
-                ])
-                st.dataframe(comparison_df, use_container_width=True)
-    else:
-        st.info("Χρειάζονται τουλάχιστον 2 προσφορές για σύγκριση.")
+            with col_before:
+                st.markdown("### Before")
+                if not before_df.empty:
+                    before_row = before_df.tail(1).iloc[0]
+                    src = image_source_from_row(before_row)
+                    if src:
+                        st.image(src, use_container_width=True)
+                    st.caption(safe_text(before_row["Τίτλος"]))
+                else:
+                    st.info("Δεν υπάρχει εικόνα Before.")
+
+            with col_after:
+                st.markdown("### After")
+                if not after_df.empty:
+                    after_row = after_df.tail(1).iloc[0]
+                    src = image_source_from_row(after_row)
+                    if src:
+                        st.image(src, use_container_width=True)
+                    st.caption(safe_text(after_row["Τίτλος"]))
+                else:
+                    st.info("Δεν υπάρχει εικόνα After.")
+
+    with tabs[2]:
+        labels = {
+            safe_text(row["_id"]): f"{safe_text(row['Χώρος'])} | {safe_text(row['Τίτλος'])} | {safe_text(row['Τύπος'])}"
+            for _, row in filtered.iterrows()
+        }
+        if labels:
+            selected_id = st.selectbox(
+                "Επιλογή εικόνας για διαγραφή",
+                options=list(labels.keys()),
+                format_func=lambda rid: labels.get(rid, "Άγνωστη εικόνα"),
+            )
+            if st.button("🗑️ Διαγραφή εικόνας"):
+                updated_df = delete_row_by_id(df_gal, selected_id)
+                if safe_write(SHEET_GALLERY, updated_df):
+                    st.success("Η εικόνα διαγράφηκε.")
+                    st.rerun()
+        else:
+            st.info("Δεν υπάρχουν εικόνες για διαχείριση.")
+
+    with tabs[3]:
+        show_table(filtered)
 
 
 def render_analytics(df_exp: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.DataFrame):
@@ -1221,13 +797,15 @@ st.sidebar.caption(f"Τελευταία ενημέρωση: {datetime.now().strf
 st.sidebar.caption("Κατασκευαστής εφαρμογής: Σκλίβας Δημήτριος")
 
 if menu == "🏠 Dashboard":
-    render_dashboard(df_expenses, df_tasks, df_offers)
+    render_dashboard(df_expenses, df_tasks, df_offers, df_gallery)
 elif menu == "💰 Έξοδα":
     render_expenses(df_expenses)
 elif menu == "📋 Εργασίες":
     render_tasks(df_tasks)
 elif menu == "💼 Προσφορές":
     render_offers(df_offers)
+elif menu == "📸 Gallery":
+    render_gallery(df_gallery)
 elif menu == "📊 Αναλύσεις":
     render_analytics(df_expenses, df_tasks, df_offers)
 elif menu == "🏦 Δάνειο":
