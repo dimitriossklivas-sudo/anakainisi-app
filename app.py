@@ -1,16 +1,24 @@
 import json
+import re
 import tempfile
 import uuid
 from datetime import datetime
 
 import pandas as pd
+import pdfplumber
 import plotly.express as px
 import streamlit as st
 from openai import OpenAI
+from PIL import Image
 from streamlit_gsheets import GSheetsConnection
 
+try:
+    import pytesseract
+except Exception:
+    pytesseract = None
+
 st.set_page_config(
-    page_title="Renovation Manager V4.1",
+    page_title="Renovation Manager V4.2",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -86,8 +94,8 @@ st.markdown(
 st.markdown(
     """
     <div class="hero">
-        <h1>🏗️ Renovation Manager V4.1</h1>
-        <p>Διαχείριση εξόδων, εργασιών, προσφορών, budget και AI ανάγνωση προσφορών από φωτογραφία/PDF.</p>
+        <h1>🏗️ Renovation Manager V4.2</h1>
+        <p>Διαχείριση εξόδων, εργασιών, προσφορών, budget και έξυπνη εισαγωγή προσφορών από εικόνα/PDF.</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -306,7 +314,67 @@ def parse_json_text(text: str) -> dict:
         end = text.rfind("}")
         if start != -1 and end != -1 and end > start:
             return json.loads(text[start:end + 1])
-        raise ValueError("Δεν βρέθηκε έγκυρο JSON στην απάντηση του AI.")
+        raise ValueError("Δεν βρέθηκε έγκυρο JSON στην απάντηση.")
+
+
+def classify_offer_category(text: str) -> str:
+    t = text.lower()
+    mapping = {
+        "Υδραυλικά": ["υδραυ", "σιφον", "μπαταρ", "σωλην", "αποχετ"],
+        "Ηλεκτρολογικά": ["ηλεκτρο", "καλωδ", "πινακ", "ρευμα", "φωτισ"],
+        "Πλακάκια": ["πλακα", "αρμο", "κεραμ"],
+        "Κουζίνα": ["κουζιν", "ντουλαπ", "παγκος"],
+        "Βάψιμο": ["βαψ", "χρωμ", "στοκος"],
+        "Μπάνιο": ["μπαν", "λεκαν", "ντουζ", "καζανα"],
+    }
+    for category, keywords in mapping.items():
+        if any(k in t for k in keywords):
+            return category
+    return "Άλλο"
+
+
+def extract_amount_from_text(text: str) -> float:
+    normalized = text.replace(",", ".")
+    matches = re.findall(r"(\d+(?:\.\d{1,2})?)\s*(?:€|eur|euro)?", normalized, flags=re.IGNORECASE)
+    values = []
+    for m in matches:
+        try:
+            values.append(float(m))
+        except Exception:
+            pass
+    return max(values) if values else 0.0
+
+
+def extract_provider_from_text(text: str) -> str:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return ""
+    return lines[0][:80]
+
+
+def extract_description_from_text(text: str) -> str:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) >= 2:
+        return lines[1][:120]
+    if lines:
+        return lines[0][:120]
+    return ""
+
+
+def extract_offer_from_text_basic(text: str) -> dict:
+    provider = extract_provider_from_text(text)
+    description = extract_description_from_text(text)
+    amount = extract_amount_from_text(text)
+    category = classify_offer_category(text)
+    short_text = " ".join(text.split())[:1200]
+
+    return {
+        "Πάροχος": provider,
+        "Περιγραφή": description,
+        "Ποσό": amount,
+        "Κατηγορία": category,
+        "Σημειώσεις": f"OCR text: {short_text}",
+    }
 
 
 def extract_offer_from_image_with_ai(uploaded_file) -> dict:
@@ -314,13 +382,13 @@ def extract_offer_from_image_with_ai(uploaded_file) -> dict:
         raise ValueError("Δεν έχει οριστεί OPENAI_API_KEY στα secrets.")
 
     file_bytes = uploaded_file.getvalue()
-
     suffix = ".jpg"
-    if uploaded_file.name.lower().endswith(".png"):
+    lower = uploaded_file.name.lower()
+    if lower.endswith(".png"):
         suffix = ".png"
-    elif uploaded_file.name.lower().endswith(".webp"):
+    elif lower.endswith(".webp"):
         suffix = ".webp"
-    elif uploaded_file.name.lower().endswith(".jpeg"):
+    elif lower.endswith(".jpeg"):
         suffix = ".jpeg"
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -444,6 +512,53 @@ def extract_offer_from_pdf_with_ai(uploaded_file) -> dict:
             f"Line items: {data.get('line_items', [])}"
         ).strip(),
     }
+
+
+def extract_offer_from_pdf_free(uploaded_file) -> dict:
+    text_parts = []
+    with pdfplumber.open(uploaded_file) as pdf:
+        for page in pdf.pages:
+            page_text = page.extract_text() or ""
+            if page_text.strip():
+                text_parts.append(page_text)
+
+    full_text = "\n".join(text_parts).strip()
+    if not full_text:
+        raise ValueError("Δεν βρέθηκε αναγνώσιμο κείμενο στο PDF.")
+    return extract_offer_from_text_basic(full_text)
+
+
+def extract_offer_from_image_free(uploaded_file) -> dict:
+    if pytesseract is None:
+        raise ValueError("Το pytesseract δεν είναι διαθέσιμο στο περιβάλλον.")
+    try:
+        image = Image.open(uploaded_file)
+        text = pytesseract.image_to_string(image, lang="eng+ell")
+    except Exception as e:
+        raise ValueError(f"Το δωρεάν OCR εικόνας απέτυχε: {e}")
+
+    if not text.strip():
+        raise ValueError("Δεν βρέθηκε κείμενο στην εικόνα.")
+    return extract_offer_from_text_basic(text)
+
+
+def extract_offer_with_fallback(uploaded_file) -> tuple[dict, str]:
+    is_pdf = uploaded_file.type == "application/pdf"
+
+    if ai_client is not None:
+        try:
+            if is_pdf:
+                return extract_offer_from_pdf_with_ai(uploaded_file), "AI"
+            return extract_offer_from_image_with_ai(uploaded_file), "AI"
+        except Exception as e:
+            err = str(e)
+            if "insufficient_quota" not in err and "429" not in err:
+                raise
+
+    if is_pdf:
+        return extract_offer_from_pdf_free(uploaded_file), "FREE_PDF_OCR"
+
+    return extract_offer_from_image_free(uploaded_file), "FREE_IMAGE_OCR"
 
 
 df_expenses = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
@@ -784,29 +899,31 @@ def render_tasks(df_task: pd.DataFrame):
 def render_offers(df_off: pd.DataFrame):
     st.subheader("💼 Προσφορές")
 
-    st.markdown("### AI Εισαγωγή από φωτογραφία ή PDF")
+    st.markdown("### AI / OCR Εισαγωγή από φωτογραφία ή PDF")
     uploaded_offer = st.file_uploader(
         "Ανέβασε φωτογραφία ή PDF προσφοράς",
         type=["png", "jpg", "jpeg", "webp", "pdf"],
         key="offer_ai_upload",
     )
 
-    if uploaded_offer is not None and st.button("🤖 Ανάλυση προσφοράς με AI", key="analyze_offer_ai_btn"):
+    if uploaded_offer is not None and st.button("🤖 Ανάλυση προσφοράς", key="analyze_offer_ai_btn"):
         try:
             with st.spinner("Γίνεται ανάγνωση της προσφοράς..."):
-                if uploaded_offer.type == "application/pdf":
-                    ai_offer = extract_offer_from_pdf_with_ai(uploaded_offer)
-                else:
-                    ai_offer = extract_offer_from_image_with_ai(uploaded_offer)
+                parsed_offer, source_mode = extract_offer_with_fallback(uploaded_offer)
 
-            st.session_state["ai_offer_draft"] = ai_offer
-            st.success("Η προσφορά αναγνωρίστηκε. Έλεγξε τα στοιχεία πριν την αποθήκευση.")
+            parsed_offer["Σημειώσεις"] = f"[SOURCE={source_mode}] " + parsed_offer.get("Σημειώσεις", "")
+            st.session_state["ai_offer_draft"] = parsed_offer
+
+            if source_mode == "AI":
+                st.success("Η προσφορά αναγνωρίστηκε με AI.")
+            else:
+                st.warning("Η προσφορά αναγνωρίστηκε με δωρεάν OCR fallback. Έλεγξε προσεκτικά τα στοιχεία.")
         except Exception as e:
             st.error(f"Αποτυχία ανάλυσης προσφοράς: {e}")
 
     if "ai_offer_draft" in st.session_state:
         draft = st.session_state["ai_offer_draft"]
-        with st.expander("🧾 Επιβεβαίωση AI προσφοράς", expanded=True):
+        with st.expander("🧾 Επιβεβαίωση αναγνωρισμένης προσφοράς", expanded=True):
             c1, c2, c3 = st.columns(3)
             with c1:
                 ai_provider = st.text_input("Πάροχος", value=str(draft.get("Πάροχος", "")), key="ai_provider")
@@ -815,11 +932,11 @@ def render_offers(df_off: pd.DataFrame):
                 ai_description = st.text_input("Περιγραφή", value=str(draft.get("Περιγραφή", "")), key="ai_description")
             with c3:
                 ai_amount = st.number_input("Ποσό (€)", min_value=0.0, value=float(draft.get("Ποσό", 0) or 0), step=10.0, key="ai_amount")
-            ai_notes = st.text_area("Σημειώσεις", value=str(draft.get("Σημειώσεις", "")), key="ai_notes", height=120)
+            ai_notes = st.text_area("Σημειώσεις", value=str(draft.get("Σημειώσεις", "")), key="ai_notes", height=140)
 
             col_save, col_cancel = st.columns(2)
             with col_save:
-                if st.button("💾 Αποθήκευση AI προσφοράς", key="save_ai_offer_btn"):
+                if st.button("💾 Αποθήκευση προσφοράς", key="save_ai_offer_btn"):
                     updated_df = append_row(
                         df_off,
                         {
@@ -833,7 +950,7 @@ def render_offers(df_off: pd.DataFrame):
                     )
                     if safe_write(SHEET_OFFERS, updated_df):
                         del st.session_state["ai_offer_draft"]
-                        st.success("Η AI προσφορά αποθηκεύτηκε.")
+                        st.success("Η προσφορά αποθηκεύτηκε.")
                         st.rerun()
             with col_cancel:
                 if st.button("❌ Απόρριψη", key="cancel_ai_offer_btn"):
@@ -874,8 +991,10 @@ def render_offers(df_off: pd.DataFrame):
     if not filtered.empty:
         temp = filtered.copy()
         temp["Ποσό"] = money_series(temp, "Ποσό")
-        best = temp.sort_values("Ποσό").iloc[0]
-        st.info(f"🏆 Καλύτερη προσφορά: {safe_text(best['Πάροχος'])} ({best['Ποσό']:.2f} €)")
+        valid_temp = temp.dropna(subset=["Ποσό"])
+        if not valid_temp.empty:
+            best = valid_temp.sort_values("Ποσό").iloc[0]
+            st.info(f"🏆 Καλύτερη προσφορά: {safe_text(best['Πάροχος'])} ({best['Ποσό']:.2f} €)")
 
     show_table(filtered)
 
@@ -949,30 +1068,34 @@ def render_offers(df_off: pd.DataFrame):
             offer_b = st.selectbox("Προσφορά Β", options=compare_ids, format_func=lambda rid: compare_options.get(rid, "Άγνωστη προσφορά"), key="compare_offer_b")
 
         if offer_a != offer_b:
-            row_a = df_off[df_off["_id"].astype(str) == str(offer_a)].iloc[0]
-            row_b = df_off[df_off["_id"].astype(str) == str(offer_b)].iloc[0]
+            row_a_df = df_off[df_off["_id"].astype(str) == str(offer_a)]
+            row_b_df = df_off[df_off["_id"].astype(str) == str(offer_b)]
 
-            amount_a = float(pd.to_numeric(pd.Series([row_a["Ποσό"]]), errors="coerce").fillna(0).iloc[0])
-            amount_b = float(pd.to_numeric(pd.Series([row_b["Ποσό"]]), errors="coerce").fillna(0).iloc[0])
+            if not row_a_df.empty and not row_b_df.empty:
+                row_a = row_a_df.iloc[0]
+                row_b = row_b_df.iloc[0]
 
-            diff = abs(amount_a - amount_b)
-            cheaper = safe_text(row_a["Πάροχος"]) if amount_a < amount_b else safe_text(row_b["Πάροχος"])
-            percent = (diff / max(amount_a, amount_b) * 100) if max(amount_a, amount_b) > 0 else 0
+                amount_a = float(pd.to_numeric(pd.Series([row_a["Ποσό"]]), errors="coerce").fillna(0).iloc[0])
+                amount_b = float(pd.to_numeric(pd.Series([row_b["Ποσό"]]), errors="coerce").fillna(0).iloc[0])
 
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Προσφορά Α", format_currency(amount_a))
-            c2.metric("Προσφορά Β", format_currency(amount_b))
-            c3.metric("Διαφορά", f"{diff:,.2f} € ({percent:.1f}%)")
+                diff = abs(amount_a - amount_b)
+                cheaper = safe_text(row_a["Πάροχος"]) if amount_a < amount_b else safe_text(row_b["Πάροχος"])
+                percent = (diff / max(amount_a, amount_b) * 100) if max(amount_a, amount_b) > 0 else 0
 
-            st.success(f"Φθηνότερη προσφορά: {cheaper}")
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Προσφορά Α", format_currency(amount_a))
+                c2.metric("Προσφορά Β", format_currency(amount_b))
+                c3.metric("Διαφορά", f"{diff:,.2f} € ({percent:.1f}%)")
 
-            comparison_df = pd.DataFrame([
-                {"Πεδίο": "Πάροχος", "Προσφορά Α": safe_text(row_a["Πάροχος"]), "Προσφορά Β": safe_text(row_b["Πάροχος"])},
-                {"Πεδίο": "Περιγραφή", "Προσφορά Α": safe_text(row_a["Περιγραφή"]), "Προσφορά Β": safe_text(row_b["Περιγραφή"])},
-                {"Πεδίο": "Κατηγορία", "Προσφορά Α": safe_text(row_a["Κατηγορία"]), "Προσφορά Β": safe_text(row_b["Κατηγορία"])},
-                {"Πεδίο": "Σημειώσεις", "Προσφορά Α": safe_text(row_a["Σημειώσεις"]), "Προσφορά Β": safe_text(row_b["Σημειώσεις"])},
-            ])
-            st.dataframe(comparison_df, use_container_width=True)
+                st.success(f"Φθηνότερη προσφορά: {cheaper}")
+
+                comparison_df = pd.DataFrame([
+                    {"Πεδίο": "Πάροχος", "Προσφορά Α": safe_text(row_a["Πάροχος"]), "Προσφορά Β": safe_text(row_b["Πάροχος"])},
+                    {"Πεδίο": "Περιγραφή", "Προσφορά Α": safe_text(row_a["Περιγραφή"]), "Προσφορά Β": safe_text(row_b["Περιγραφή"])},
+                    {"Πεδίο": "Κατηγορία", "Προσφορά Α": safe_text(row_a["Κατηγορία"]), "Προσφορά Β": safe_text(row_b["Κατηγορία"])},
+                    {"Πεδίο": "Σημειώσεις", "Προσφορά Α": safe_text(row_a["Σημειώσεις"]), "Προσφορά Β": safe_text(row_b["Σημειώσεις"])},
+                ])
+                st.dataframe(comparison_df, use_container_width=True)
     else:
         st.info("Χρειάζονται τουλάχιστον 2 προσφορές για σύγκριση.")
 
@@ -1098,5 +1221,4 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
 
