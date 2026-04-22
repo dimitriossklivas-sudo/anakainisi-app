@@ -524,22 +524,42 @@ def extract_offer_from_pdf_free(uploaded_file) -> dict:
 
     full_text = "\n".join(text_parts).strip()
     if not full_text:
-        raise ValueError("Δεν βρέθηκε αναγνώσιμο κείμενο στο PDF.")
+        return {
+            "Πάροχος": "",
+            "Περιγραφή": uploaded_file.name,
+            "Ποσό": 0.0,
+            "Κατηγορία": "Άλλο",
+            "Σημειώσεις": "Δεν βρέθηκε αναγνώσιμο κείμενο στο PDF. Συμπλήρωσε χειροκίνητα τα στοιχεία.",
+        }
+
     return extract_offer_from_text_basic(full_text)
 
 
 def extract_offer_from_image_free(uploaded_file) -> dict:
     if pytesseract is None:
-        raise ValueError("Το pytesseract δεν είναι διαθέσιμο στο περιβάλλον.")
+        return {
+            "Πάροχος": "",
+            "Περιγραφή": uploaded_file.name,
+            "Ποσό": 0.0,
+            "Κατηγορία": "Άλλο",
+            "Σημειώσεις": "Δεν ήταν διαθέσιμο δωρεάν OCR εικόνας στο περιβάλλον. Συμπλήρωσε χειροκίνητα τα πεδία.",
+        }
+
     try:
         image = Image.open(uploaded_file)
         text = pytesseract.image_to_string(image, lang="eng+ell")
-    except Exception as e:
-        raise ValueError(f"Το δωρεάν OCR εικόνας απέτυχε: {e}")
+        if text.strip():
+            return extract_offer_from_text_basic(text)
+    except Exception:
+        pass
 
-    if not text.strip():
-        raise ValueError("Δεν βρέθηκε κείμενο στην εικόνα.")
-    return extract_offer_from_text_basic(text)
+    return {
+        "Πάροχος": "",
+        "Περιγραφή": uploaded_file.name,
+        "Ποσό": 0.0,
+        "Κατηγορία": "Άλλο",
+        "Σημειώσεις": "Η εικόνα δεν αναγνωρίστηκε αυτόματα. Συμπλήρωσε χειροκίνητα τα στοιχεία.",
+    }
 
 
 def extract_offer_with_fallback(uploaded_file) -> tuple[dict, str]:
@@ -916,8 +936,10 @@ def render_offers(df_off: pd.DataFrame):
 
             if source_mode == "AI":
                 st.success("Η προσφορά αναγνωρίστηκε με AI.")
+            elif source_mode == "FREE_PDF_OCR":
+                st.warning("Η προσφορά αναγνωρίστηκε με δωρεάν OCR από PDF. Έλεγξε προσεκτικά τα στοιχεία.")
             else:
-                st.warning("Η προσφορά αναγνωρίστηκε με δωρεάν OCR fallback. Έλεγξε προσεκτικά τα στοιχεία.")
+                st.warning("Δεν ήταν δυνατή η πλήρης αυτόματη ανάγνωση της εικόνας. Συμπλήρωσε χειροκίνητα τα στοιχεία που λείπουν.")
         except Exception as e:
             st.error(f"Αποτυχία ανάλυσης προσφοράς: {e}")
 
