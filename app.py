@@ -10,7 +10,7 @@ from PIL import Image
 from streamlit_gsheets import GSheetsConnection
 
 st.set_page_config(
-    page_title="Renovation Manager V5.1",
+    page_title="Renovation Manager V5.2",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -20,82 +20,137 @@ st.markdown(
     <style>
     .stApp {
         background:
-            radial-gradient(circle at top left, rgba(212,175,55,0.10), transparent 24%),
-            radial-gradient(circle at bottom right, rgba(30,41,59,0.08), transparent 18%),
-            linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+            radial-gradient(circle at top left, rgba(212,175,55,0.12), transparent 24%),
+            radial-gradient(circle at bottom right, rgba(120,90,40,0.06), transparent 18%),
+            linear-gradient(180deg, #fbf6ee 0%, #f4ecdf 100%);
     }
+
     .block-container {
         padding-top: 1.4rem;
         padding-bottom: 2rem;
         max-width: 1500px;
     }
+
     .hero {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
-        color: white;
+        background: linear-gradient(135deg, #3f2f22 0%, #5a4330 50%, #7a5a3d 100%);
+        color: #fffaf2;
         padding: 30px 32px;
         border-radius: 26px;
         margin-bottom: 20px;
-        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.25);
+        box-shadow: 0 18px 40px rgba(62, 45, 28, 0.24);
         border: 1px solid rgba(255,255,255,0.06);
+        position: relative;
+        overflow: hidden;
     }
+
+    .hero::after {
+        content: "Σκλίβας Δημήτριος";
+        position: absolute;
+        right: 24px;
+        bottom: 10px;
+        font-size: 1rem;
+        opacity: 0.16;
+        letter-spacing: 2px;
+        font-weight: 700;
+    }
+
     .hero h1 {
         margin: 0;
         font-size: 2.6rem;
         line-height: 1.05;
     }
+
     .hero p {
         margin: 10px 0 0 0;
-        color: rgba(255,255,255,0.86);
+        color: rgba(255,250,242,0.88);
         font-size: 1rem;
     }
+
     .mini-card {
-        background: rgba(255,255,255,0.96);
-        border: 1px solid rgba(15,23,42,0.05);
+        background: rgba(255, 250, 242, 0.92);
+        border: 1px solid rgba(90, 67, 48, 0.08);
         border-radius: 20px;
         padding: 16px 18px;
-        box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+        box-shadow: 0 10px 24px rgba(90, 67, 48, 0.06);
         margin-bottom: 14px;
     }
+
     .section-title {
         font-size: 1.08rem;
         font-weight: 700;
         margin-bottom: 10px;
-        color: #0f172a;
+        color: #4c3826;
     }
+
     .maker {
         margin-top: 24px;
         padding: 12px 14px;
         border-radius: 14px;
-        background: rgba(255,255,255,0.85);
-        border: 1px solid rgba(15,23,42,0.06);
-        color: #334155;
+        background: rgba(255,250,242,0.88);
+        border: 1px solid rgba(90,67,48,0.08);
+        color: #5a4330;
         font-size: 0.95rem;
     }
+
     .gallery-note {
         padding: 10px 12px;
-        background: rgba(255,255,255,0.88);
+        background: rgba(255,248,238,0.95);
         border-radius: 12px;
-        border: 1px solid rgba(15,23,42,0.05);
+        border: 1px solid rgba(90,67,48,0.07);
         margin-top: 8px;
         margin-bottom: 12px;
     }
+
     .room-badge {
         display: inline-block;
         padding: 6px 10px;
         border-radius: 999px;
-        background: #e2e8f0;
-        color: #0f172a;
+        background: #eadcc7;
+        color: #4c3826;
         font-size: 0.85rem;
         font-weight: 600;
         margin-right: 8px;
         margin-bottom: 8px;
     }
+
+    .watermark-box {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .watermark-box::after {
+        content: "Σκλίβας Δημήτριος";
+        position: absolute;
+        right: 12px;
+        bottom: 8px;
+        font-size: 0.85rem;
+        opacity: 0.13;
+        font-weight: 700;
+        letter-spacing: 1px;
+        color: #5a4330;
+        pointer-events: none;
+    }
+
     div[data-testid="stMetric"] {
-        background: rgba(255,255,255,0.98);
+        background: rgba(255,250,242,0.98);
         border-radius: 18px;
         padding: 14px;
-        box-shadow: 0 10px 24px rgba(15,23,42,0.08);
-        border-top: 4px solid #D4AF37;
+        box-shadow: 0 10px 24px rgba(90,67,48,0.08);
+        border-top: 4px solid #c9a96b;
+    }
+
+    div[data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #f3e8d9 0%, #efe1cd 100%);
+    }
+
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        background: rgba(255,250,242,0.9);
+        border-radius: 12px;
+        padding: 8px 14px;
     }
     </style>
     """,
@@ -105,8 +160,8 @@ st.markdown(
 st.markdown(
     """
     <div class="hero">
-        <h1>🏗️ Renovation Manager V5.1</h1>
-        <p>Οικονομική παρακολούθηση, εργασίες, προσφορές και οπτική πρόοδος ανακαίνισης με gallery εικόνων.</p>
+        <h1>🏗️ Renovation Manager V5.2</h1>
+        <p>Οικονομική παρακολούθηση, gallery προόδου, before/after και οπτικό dashboard ανακαίνισης.</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -146,7 +201,7 @@ ROOMS = ["Κουζίνα", "Μπάνιο", "Σαλόνι", "Υπνοδωμάτι
 IMAGE_TYPES = ["Before", "After", "Progress", "Material"]
 
 PLOTLY_TEMPLATE = "plotly_white"
-CHART_COLORS = ["#D4AF37", "#1E293B", "#38BDF8", "#22C55E", "#F97316", "#EF4444", "#8B5CF6"]
+CHART_COLORS = ["#c9a96b", "#6b4f3a", "#b07d4f", "#8d6e63", "#a1887f", "#d4af37", "#7b5e57"]
 
 
 @st.cache_resource
@@ -275,12 +330,11 @@ def make_donut_chart(df: pd.DataFrame, names: str, values: str, title: str):
     return fig
 
 
-def default_index(options: list[str], value: str) -> int:
-    return options.index(value) if value in options else 0
-
-
 def card_start(title: str):
-    st.markdown(f'<div class="mini-card"><div class="section-title">{title}</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="mini-card watermark-box"><div class="section-title">{title}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def card_end():
@@ -293,7 +347,7 @@ def safe_text(value, fallback=""):
     return str(value)
 
 
-def image_to_base64(uploaded_file, max_size=(1200, 1200), quality=72) -> str:
+def image_to_base64(uploaded_file, max_size=(1400, 1400), quality=74) -> str:
     image = Image.open(uploaded_file).convert("RGB")
     image.thumbnail(max_size)
     buffer = io.BytesIO()
@@ -301,10 +355,9 @@ def image_to_base64(uploaded_file, max_size=(1200, 1200), quality=72) -> str:
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
-def image_source_from_row(row: pd.Series) -> str | None:
+def image_source_from_row(row: pd.Series):
     image_url = safe_text(row.get("Image_URL", ""))
     image_data = safe_text(row.get("Image_Data", ""))
-
     if image_url:
         return image_url
     if image_data:
@@ -321,7 +374,8 @@ def room_progress_summary(df_gal: pd.DataFrame) -> pd.DataFrame:
         before_count = len(room_df[room_df["Τύπος"] == "Before"])
         after_count = len(room_df[room_df["Τύπος"] == "After"])
         progress_count = len(room_df[room_df["Τύπος"] == "Progress"])
-        score = min(100, after_count * 60 + progress_count * 20 + before_count * 5)
+        material_count = len(room_df[room_df["Τύπος"] == "Material"])
+        score = min(100, after_count * 55 + progress_count * 20 + material_count * 10 + before_count * 5)
         rows.append({"Χώρος": room, "Πρόοδος": score})
     return pd.DataFrame(rows)
 
@@ -367,9 +421,9 @@ def render_dashboard(df_exp: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.Dat
     else:
         st.success("Το budget είναι σε ελεγχόμενο επίπεδο.")
 
-    left, right = st.columns([1.2, 1])
+    top_left, top_right = st.columns([1.2, 1])
 
-    with left:
+    with top_left:
         card_start("Visual Progress")
         if not df_gal.empty:
             progress_imgs = df_gal[df_gal["Τύπος"].isin(["Progress", "After", "Before"])].copy()
@@ -394,7 +448,7 @@ def render_dashboard(df_exp: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.Dat
             st.info("Δεν υπάρχουν φωτογραφίες.")
         card_end()
 
-    with right:
+    with top_right:
         card_start("Έξοδα ανά Κατηγορία")
         if not df_exp.empty:
             temp = df_exp.copy()
@@ -406,9 +460,9 @@ def render_dashboard(df_exp: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.Dat
             st.info("Δεν υπάρχουν έξοδα.")
         card_end()
 
-    b1, b2, b3 = st.columns(3)
+    row1, row2, row3 = st.columns(3)
 
-    with b1:
+    with row1:
         card_start("Αμοιβή / Υλικά")
         if not df_exp.empty:
             temp = df_exp.copy()
@@ -420,7 +474,7 @@ def render_dashboard(df_exp: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.Dat
             st.info("Δεν υπάρχουν δεδομένα.")
         card_end()
 
-    with b2:
+    with row2:
         card_start("Πρόοδος ανά Χώρο")
         room_summary = room_progress_summary(df_gal)
         if not room_summary.empty:
@@ -430,7 +484,7 @@ def render_dashboard(df_exp: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.Dat
             st.info("Δεν υπάρχουν ακόμα στοιχεία gallery.")
         card_end()
 
-    with b3:
+    with row3:
         card_start("Πρόσφατες Εικόνες")
         if not df_gal.empty:
             preview = df_gal.tail(3)
@@ -595,11 +649,13 @@ def render_gallery(df_gal: pd.DataFrame):
         st.info("Δεν υπάρχουν εικόνες ακόμα.")
         return
 
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns(3)
     with c1:
         room_filter = st.selectbox("Φίλτρο χώρου", ["Όλοι"] + ROOMS)
     with c2:
         type_filter = st.selectbox("Φίλτρο τύπου", ["Όλα"] + IMAGE_TYPES)
+    with c3:
+        slideshow_mode = st.checkbox("Slideshow mode")
 
     filtered = df_gal.copy()
     if room_filter != "Όλοι":
@@ -616,7 +672,7 @@ def render_gallery(df_gal: pd.DataFrame):
                 unsafe_allow_html=True,
             )
 
-    tabs = st.tabs(["Gallery Grid", "Before / After", "Διαχείριση", "Δεδομένα"])
+    tabs = st.tabs(["Gallery Grid", "Before / After", "Slideshow", "Διαχείριση", "Δεδομένα"])
 
     with tabs[0]:
         if filtered.empty:
@@ -676,6 +732,30 @@ def render_gallery(df_gal: pd.DataFrame):
                     st.info("Δεν υπάρχει εικόνα After.")
 
     with tabs[2]:
+        if filtered.empty:
+            st.info("Δεν υπάρχουν εικόνες για slideshow.")
+        else:
+            img_index = st.slider("Επιλογή εικόνας", 0, len(filtered) - 1, 0)
+            row = filtered.reset_index(drop=True).iloc[img_index]
+            src = image_source_from_row(row)
+            if src:
+                st.image(src, use_container_width=True)
+            st.markdown(
+                f"""
+                <div class="gallery-note">
+                <strong>{safe_text(row["Τίτλος"])}</strong><br>
+                Χώρος: {safe_text(row["Χώρος"])}<br>
+                Τύπος: {safe_text(row["Τύπος"])}<br>
+                <small>{safe_text(row["Σημειώσεις"])}</small>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            if slideshow_mode:
+                st.info("Το slideshow mode είναι ενεργό. Μετακίνησε τον slider για γρήγορη προβολή διαφανειών.")
+
+    with tabs[3]:
         labels = {
             safe_text(row["_id"]): f"{safe_text(row['Χώρος'])} | {safe_text(row['Τίτλος'])} | {safe_text(row['Τύπος'])}"
             for _, row in filtered.iterrows()
@@ -694,12 +774,13 @@ def render_gallery(df_gal: pd.DataFrame):
         else:
             st.info("Δεν υπάρχουν εικόνες για διαχείριση.")
 
-    with tabs[3]:
+    with tabs[4]:
         show_table(filtered)
 
 
 def render_analytics(df_exp: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.DataFrame):
     st.subheader("📊 Αναλύσεις")
+
     left, right = st.columns(2)
 
     with left:
@@ -714,34 +795,12 @@ def render_analytics(df_exp: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.Dat
             st.info("Δεν υπάρχουν δεδομένα.")
         card_end()
 
-        card_start("Έξοδα ανά Είδος")
-        if not df_exp.empty:
-            temp = df_exp.copy()
-            temp["Ποσό"] = money_series(temp, "Ποσό")
-            summary = temp.groupby("Είδος", as_index=False)["Ποσό"].sum()
-            st.dataframe(summary, use_container_width=True)
-            st.plotly_chart(make_donut_chart(summary, "Είδος", "Ποσό", "Αμοιβή vs Υλικά"), use_container_width=True)
-        else:
-            st.info("Δεν υπάρχουν δεδομένα.")
-        card_end()
-
     with right:
         card_start("Εργασίες ανά Κατάσταση")
         if not df_task.empty:
             summary = df_task["Κατάσταση"].value_counts().rename_axis("Κατάσταση").reset_index(name="Πλήθος")
             st.dataframe(summary, use_container_width=True)
             st.plotly_chart(make_bar_chart(summary, "Κατάσταση", "Πλήθος", "Κατανομή εργασιών"), use_container_width=True)
-        else:
-            st.info("Δεν υπάρχουν δεδομένα.")
-        card_end()
-
-        card_start("Μέσο Ποσό Προσφορών ανά Κατηγορία")
-        if not df_off.empty:
-            temp = df_off.copy()
-            temp["Ποσό"] = money_series(temp, "Ποσό")
-            summary = temp.groupby("Κατηγορία", as_index=False)["Ποσό"].mean().rename(columns={"Ποσό": "Μέσο Ποσό"})
-            st.dataframe(summary, use_container_width=True)
-            st.plotly_chart(make_bar_chart(summary, "Κατηγορία", "Μέσο Ποσό", "Μέσο κόστος προσφορών"), use_container_width=True)
         else:
             st.info("Δεν υπάρχουν δεδομένα.")
         card_end()
