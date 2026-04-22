@@ -10,7 +10,7 @@ from PIL import Image
 from streamlit_gsheets import GSheetsConnection
 
 st.set_page_config(
-    page_title="Renovation Manager V5.2",
+    page_title="Methana Earth & Fire",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -24,64 +24,58 @@ st.markdown(
             radial-gradient(circle at bottom right, rgba(120,90,40,0.06), transparent 18%),
             linear-gradient(180deg, #fbf6ee 0%, #f4ecdf 100%);
     }
-
     .block-container {
-        padding-top: 1.4rem;
+        padding-top: 1.2rem;
         padding-bottom: 2rem;
         max-width: 1500px;
     }
-
     .hero {
         background: linear-gradient(135deg, #3f2f22 0%, #5a4330 50%, #7a5a3d 100%);
         color: #fffaf2;
-        padding: 30px 32px;
-        border-radius: 26px;
-        margin-bottom: 20px;
+        padding: 28px 30px;
+        border-radius: 24px;
+        margin-bottom: 18px;
         box-shadow: 0 18px 40px rgba(62, 45, 28, 0.24);
         border: 1px solid rgba(255,255,255,0.06);
         position: relative;
         overflow: hidden;
     }
-
     .hero::after {
         content: "Σκλίβας Δημήτριος";
         position: absolute;
-        right: 24px;
+        right: 22px;
         bottom: 10px;
         font-size: 1rem;
-        opacity: 0.16;
+        opacity: 0.15;
         letter-spacing: 2px;
         font-weight: 700;
     }
-
     .hero h1 {
         margin: 0;
-        font-size: 2.6rem;
+        font-size: 2.3rem;
         line-height: 1.05;
+        letter-spacing: 0.4px;
     }
-
     .hero p {
         margin: 10px 0 0 0;
         color: rgba(255,250,242,0.88);
         font-size: 1rem;
+        letter-spacing: 0.2px;
     }
-
     .mini-card {
         background: rgba(255, 250, 242, 0.92);
         border: 1px solid rgba(90, 67, 48, 0.08);
-        border-radius: 20px;
+        border-radius: 18px;
         padding: 16px 18px;
         box-shadow: 0 10px 24px rgba(90, 67, 48, 0.06);
         margin-bottom: 14px;
     }
-
     .section-title {
-        font-size: 1.08rem;
+        font-size: 1.05rem;
         font-weight: 700;
         margin-bottom: 10px;
         color: #4c3826;
     }
-
     .maker {
         margin-top: 24px;
         padding: 12px 14px;
@@ -91,7 +85,6 @@ st.markdown(
         color: #5a4330;
         font-size: 0.95rem;
     }
-
     .gallery-note {
         padding: 10px 12px;
         background: rgba(255,248,238,0.95);
@@ -100,7 +93,6 @@ st.markdown(
         margin-top: 8px;
         margin-bottom: 12px;
     }
-
     .room-badge {
         display: inline-block;
         padding: 6px 10px;
@@ -112,25 +104,22 @@ st.markdown(
         margin-right: 8px;
         margin-bottom: 8px;
     }
-
     .watermark-box {
         position: relative;
         overflow: hidden;
     }
-
     .watermark-box::after {
         content: "Σκλίβας Δημήτριος";
         position: absolute;
         right: 12px;
         bottom: 8px;
-        font-size: 0.85rem;
-        opacity: 0.13;
+        font-size: 0.82rem;
+        opacity: 0.12;
         font-weight: 700;
         letter-spacing: 1px;
         color: #5a4330;
         pointer-events: none;
     }
-
     div[data-testid="stMetric"] {
         background: rgba(255,250,242,0.98);
         border-radius: 18px;
@@ -138,15 +127,12 @@ st.markdown(
         box-shadow: 0 10px 24px rgba(90,67,48,0.08);
         border-top: 4px solid #c9a96b;
     }
-
     div[data-testid="stSidebar"] {
         background: linear-gradient(180deg, #f3e8d9 0%, #efe1cd 100%);
     }
-
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
     }
-
     .stTabs [data-baseweb="tab"] {
         background: rgba(255,250,242,0.9);
         border-radius: 12px;
@@ -157,15 +143,24 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown(
-    """
-    <div class="hero">
-        <h1>🏗️ Renovation Manager V5.2</h1>
-        <p>Οικονομική παρακολούθηση, gallery προόδου, before/after και οπτικό dashboard ανακαίνισης.</p>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+header_left, header_right = st.columns([1.1, 4.8])
+
+with header_left:
+    try:
+        st.image("logo.png", width=150)
+    except Exception:
+        st.info("Βάλε το `logo.png` δίπλα στο `app.py`.")
+
+with header_right:
+    st.markdown(
+        """
+        <div class="hero">
+            <h1>Methana Earth & Fire</h1>
+            <p>Personal Renovation Project by Σκλίβας Δημήτριος</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 SHEET_EXPENSES = "Expenses"
 SHEET_TASKS = "Progress"
@@ -753,7 +748,7 @@ def render_gallery(df_gal: pd.DataFrame):
             )
 
             if slideshow_mode:
-                st.info("Το slideshow mode είναι ενεργό. Μετακίνησε τον slider για γρήγορη προβολή διαφανειών.")
+                st.info("Το slideshow mode είναι ενεργό. Μετακίνησε τον slider για γρήγορη προβολή.")
 
     with tabs[3]:
         labels = {
@@ -880,4 +875,3 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
