@@ -695,62 +695,62 @@ def render_expenses(df_exp: pd.DataFrame):
  st.subheader("💰 Έξοδα")
  with st.expander("➕ Νέο έξοδο"):
  with st.form("expense_add_form", clear_on_submit=True):
- c1, c2, c3 = st.columns(3)
+     c1, c2, c3 = st.columns(3)
  with c1:
- expense_date = st.date_input("Ημερομηνία")
- category = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES)
+     expense_date = st.date_input("Ημερομηνία")
+     category = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES)
  with c2:
- expense_type = st.selectbox("Είδος", EXPENSE_TYPES)
- payer = st.selectbox("Πληρωτής", PAYERS)
+     expense_type = st.selectbox("Είδος", EXPENSE_TYPES)
+     payer = st.selectbox("Πληρωτής", PAYERS)
  with c3:
- amount = st.number_input("Ποσό (€)", min_value=0.0, step=10.0)
- notes = st.text_input("Σημειώσεις")
+     amount = st.number_input("Ποσό (€)", min_value=0.0, step=10.0)
+     notes = st.text_input("Σημειώσεις")
  if st.form_submit_button("Αποθήκευση"):
- updated_df = append_row(
- df_exp,
- {
- "Ημερομηνία": str(expense_date),
- "Κατηγορία": category,
- "Είδος": expense_type,
- "Ποσό": amount,
- "Πληρωτής": payer,
- "Σημειώσεις": notes.strip(),
- },
- EXPENSE_COLUMNS,
- )
+     updated_df = append_row(
+     df_exp,
+     {
+     "Ημερομηνία": str(expense_date),
+     "Κατηγορία": category,
+     "Είδος": expense_type,
+     "Ποσό": amount,
+     "Πληρωτής": payer,
+     "Σημειώσεις": notes.strip(),
+     },
+     EXPENSE_COLUMNS,
+     )
  if safe_write(SHEET_EXPENSES, updated_df):
- st.success("Το έξοδο αποθηκεύτηκε.")
- st.rerun()
+     st.success("Το έξοδο αποθηκεύτηκε.")
+     st.rerun()
  if df_exp.empty:
- st.info("Δεν υπάρχουν έξοδα.")
- return
- temp = df_exp.copy()
- temp["Ποσό"] = money_series(temp, "Ποσό")
- st.markdown("### Ομαδοποιημένες καταχωρήσεις")
- group_view = temp.groupby(["Κατηγορία", "Είδος", "Πληρωτής"], as_index=False)["Ποσό"].sum().sort_values(["Κατηγορία", "Είδος", "Πληρωτής"])
- st.dataframe(group_view, use_container_width=True)
- tabs = st.tabs(["Αναλυτικά", "Ομαδοποιημένα ανά κατηγορία", "Διαγραφή"])
+     st.info("Δεν υπάρχουν έξοδα.")
+     return
+     temp = df_exp.copy()
+     temp["Ποσό"] = money_series(temp, "Ποσό")
+     st.markdown("### Ομαδοποιημένες καταχωρήσεις")
+     group_view = temp.groupby(["Κατηγορία", "Είδος", "Πληρωτής"], as_index=False)["Ποσό"].sum().sort_values(["Κατηγορία", "Είδος", "Πληρωτής"])
+     st.dataframe(group_view, use_container_width=True)
+     tabs = st.tabs(["Αναλυτικά", "Ομαδοποιημένα ανά κατηγορία", "Διαγραφή"])
  with tabs[0]:
- show_table(temp)
+     show_table(temp)
  with tabs[1]:
- grouped_category = temp.groupby(["Κατηγορία", "Είδος"], as_index=False)["Ποσό"].sum().sort_values("Ποσό", ascending=False)
- st.dataframe(grouped_category, use_container_width=True)
- st.plotly_chart(make_bar_chart(grouped_category, "Κατηγορία", "Ποσό", "Έξοδα ανά κατηγορία"), use_container_width=True)
+     grouped_category = temp.groupby(["Κατηγορία", "Είδος"], as_index=False)["Ποσό"].sum().sort_values("Ποσό", ascending=False)
+     st.dataframe(grouped_category, use_container_width=True)
+     st.plotly_chart(make_bar_chart(grouped_category, "Κατηγορία", "Ποσό", "Έξοδα ανά κατηγορία"), use_container_width=True)
  with tabs[2]:
- labels = {}
- for _, row in temp.iterrows():
- row_id = safe_text(row["_id"])
- labels[row_id] = f"{safe_text(row['Ημερομηνία'])} | {safe_text(row['Κατηγορία'])} | {safe_text(row['Είδος'])} | {format_currency(row['Ποσό'])} | {safe_text(row['Πληρωτής'])}"
- selected_id = st.selectbox(
- "Επιλογή εξόδου για διαγραφή",
- options=list(labels.keys()),
- format_func=lambda rid: labels.get(rid, "Άγνωστη εγγραφή"),
- )
+     labels = {}
+     for _, row in temp.iterrows():
+         row_id = safe_text(row["_id"])
+         labels[row_id] = f"{safe_text(row['Ημερομηνία'])} | {safe_text(row['Κατηγορία'])} | {safe_text(row['Είδος'])} | {format_currency(row['Ποσό'])} | {safe_text(row['Πληρωτής'])}"
+         selected_id = st.selectbox(
+         "Επιλογή εξόδου για διαγραφή",
+         options=list(labels.keys()),
+         format_func=lambda rid: labels.get(rid, "Άγνωστη εγγραφή"),
+         )
  if st.button("🗑️ Διαγραφή εξόδου"):
- updated_df = delete_row_by_id(df_exp, selected_id)
+     updated_df = delete_row_by_id(df_exp, selected_id)
  if safe_write(SHEET_EXPENSES, updated_df):
- st.success("Η καταχώρηση εξόδων διαγράφηκε.")
- st.rerun()
+     st.success("Η καταχώρηση εξόδων διαγράφηκε.")
+     st.rerun()
 # ✅ FIX Bug 1: Προστέθηκε df_material ως 1ο argument στο append_row
 # ✅ FIX Bug 2: Αφαιρέθηκε το αδέσποτο df_material, στο τέλος
 
