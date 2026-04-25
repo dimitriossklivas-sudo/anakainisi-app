@@ -346,7 +346,6 @@ def safe_text(value, fallback=""):
 
 
 def safe_float(value, default=0.0):
-    """Ασφαλής μετατροπή σε float"""
     try:
         return float(value)
     except (ValueError, TypeError):
@@ -416,7 +415,7 @@ def render_progress_line(label: str, value: float, total: float, css_class: str,
 def render_split_card(title: str, subtitle: str, total_amount: float, paid_me: float, paid_father: float, target_me: float | None = None, target_father: float | None = None):
     total_paid = paid_me + paid_father
     remaining = max(total_amount - total_paid, 0)
-    
+
     st.markdown(
         f"""
         <div class="split-card">
@@ -425,31 +424,27 @@ def render_split_card(title: str, subtitle: str, total_amount: float, paid_me: f
         """,
         unsafe_allow_html=True,
     )
-    
-    # Συνολική πρόοδος
-    render_progress_line("Σύνολο καλυμμένο", total_paid, total_amount, "split-total", 
+
+    render_progress_line("Σύνολο καλυμμένο", total_paid, total_amount, "split-total",
                         f"{format_currency(total_paid)} / {format_currency(total_amount)}")
-    
-    # Πρόοδος Εγώ
+
     if target_me is not None and target_me > 0:
-        render_progress_line("Εγώ", paid_me, target_me, "split-me", 
+        render_progress_line("Εγώ", paid_me, target_me, "split-me",
                             f"{format_currency(paid_me)} από {format_currency(target_me)}")
     else:
-        render_progress_line("Εγώ", paid_me, total_amount, "split-me", 
+        render_progress_line("Εγώ", paid_me, total_amount, "split-me",
                             f"{format_currency(paid_me)}")
-    
-    # Πρόοδος Πατέρας
+
     if target_father is not None and target_father > 0:
-        render_progress_line("Πατέρας", paid_father, target_father, "split-father", 
+        render_progress_line("Πατέρας", paid_father, target_father, "split-father",
                             f"{format_currency(paid_father)} από {format_currency(target_father)}")
     else:
-        render_progress_line("Πατέρας", paid_father, total_amount, "split-father", 
+        render_progress_line("Πατέρας", paid_father, total_amount, "split-father",
                             f"{format_currency(paid_father)}")
-    
-    # Υπόλοιπο
-    render_progress_line("Απομένει", remaining, total_amount, "split-remaining", 
+
+    render_progress_line("Απομένει", remaining, total_amount, "split-remaining",
                         format_currency(remaining))
-    
+
     st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -500,27 +495,25 @@ def image_source_from_row(row: pd.Series):
 
 
 def calculate_fee_status(df_fee: pd.DataFrame, df_exp: pd.DataFrame) -> pd.DataFrame:
-    """Υπολογίζει την πρόοδο πληρωμών για κάθε κατηγορία αμοιβής"""
     if df_fee.empty:
         return pd.DataFrame()
-    
+
     results = []
     for _, fee in df_fee.iterrows():
         cat = safe_text(fee.get("Κατηγορία", ""))
         if not cat:
             continue
-            
+
         total = safe_float(fee.get("Ποσό", 0))
-        
-        # Βρες όλες τις αμοιβές αυτής της κατηγορίας
+
         relevant = df_exp[
-            (df_exp["Κατηγορία"] == cat) & 
+            (df_exp["Κατηγορία"] == cat) &
             (df_exp["Είδος"] == "Αμοιβή")
         ] if not df_exp.empty else pd.DataFrame()
-        
+
         paid_me = money_series(relevant[relevant["Πληρωτής"] == "Εγώ"], "Ποσό").sum()
         paid_father = money_series(relevant[relevant["Πληρωτής"] == "Πατέρας"], "Ποσό").sum()
-        
+
         results.append({
             "Κατηγορία": cat,
             "Συνολικό Ποσό": total,
@@ -530,30 +523,27 @@ def calculate_fee_status(df_fee: pd.DataFrame, df_exp: pd.DataFrame) -> pd.DataF
             "Στόχος Πατέρας": total / 2,
             "Περιγραφή": safe_text(fee.get("Περιγραφή"), f"Αμοιβή {cat}")
         })
-    
+
     return pd.DataFrame(results)
 
 
 def calculate_material_split_from_expenses(df_exp: pd.DataFrame) -> pd.DataFrame:
-    """Υπολογίζει το split πληρωμών ανά κατηγορία για Υλικά"""
     if df_exp.empty:
         return pd.DataFrame()
-    
-    # Φιλτράρουμε μόνο Υλικά
+
     materials = df_exp[df_exp["Είδος"] == "Υλικά"].copy()
     if materials.empty:
         return pd.DataFrame()
-    
+
     materials["Ποσό"] = money_series(materials, "Ποσό")
-    
-    # Group by κατηγορία και υπολόγισε σύνολα
+
     summary = []
     for category in materials["Κατηγορία"].unique():
         cat_mats = materials[materials["Κατηγορία"] == category]
         total = cat_mats["Ποσό"].sum()
         paid_me = cat_mats[cat_mats["Πληρωτής"] == "Εγώ"]["Ποσό"].sum()
         paid_father = cat_mats[cat_mats["Πληρωτής"] == "Πατέρας"]["Ποσό"].sum()
-        
+
         summary.append({
             "Κατηγορία": category,
             "Σύνολο": total,
@@ -561,7 +551,7 @@ def calculate_material_split_from_expenses(df_exp: pd.DataFrame) -> pd.DataFrame
             "Πατέρας": paid_father,
             "Υπόλοιπο": total - paid_me - paid_father
         })
-    
+
     return pd.DataFrame(summary).sort_values("Σύνολο", ascending=False)
 
 
@@ -598,20 +588,19 @@ def room_progress_summary(df_gal: pd.DataFrame) -> pd.DataFrame:
 
 
 def prepare_timeline_df(df_tasks: pd.DataFrame) -> pd.DataFrame:
-    """Προετοιμάζει τα δεδομένα για το Gantt chart"""
     if df_tasks.empty:
         return pd.DataFrame()
-    
+
     rows = []
     for _, row in df_tasks.iterrows():
         task_name = safe_text(row.get("Εργασία", ""))
         if not task_name:
             continue
-        
+
         start = parse_date(row.get("Ημερομηνία_Έναρξης"), date.today())
         default_end = start + timedelta(days=1) if start else date.today() + timedelta(days=1)
         end = parse_date(row.get("Ημερομηνία_Λήξης"), default_end)
-        
+
         rows.append({
             "Task": task_name,
             "Start": start,
@@ -620,18 +609,13 @@ def prepare_timeline_df(df_tasks: pd.DataFrame) -> pd.DataFrame:
             "Χώρος": safe_text(row.get("Χώρος"), "Άλλο"),
             "Ανάθεση": safe_text(row.get("Ανάθεση"), "")
         })
-    
+
     return pd.DataFrame(rows)
 
 
-# ============================================
-# RENDER FUNCTIONS
-# ============================================
-
 def render_dashboard(df_exp: pd.DataFrame, df_fee: pd.DataFrame, df_material: pd.DataFrame, df_loan: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.DataFrame, df_gal: pd.DataFrame):
     st.markdown('<div class="dashboard-block-title">🏠 Dashboard Ανακαίνισης</div>', unsafe_allow_html=True)
-    
-    # Συνολικό Budget
+
     col_budget, col_spent, col_remaining, col_tasks = st.columns(4)
     with col_budget:
         budget = st.number_input("Συνολικό Budget (€)", min_value=0.0, value=30000.0, step=1000.0, key="global_budget")
@@ -644,17 +628,14 @@ def render_dashboard(df_exp: pd.DataFrame, df_fee: pd.DataFrame, df_material: pd
     with col_tasks:
         active_tasks = len(df_task[df_task["Κατάσταση"] == "Doing"]) if not df_task.empty else 0
         st.metric("Ενεργές Εργασίες", active_tasks)
-    
+
     st.markdown("---")
-    
-    # ============================================
-    # 1. ΚΑΡΤΕΣ ΑΜΟΙΒΩΝ ΣΥΝΕΡΓΕΙΩΝ (Fees)
-    # ============================================
+
     st.markdown('<div class="dashboard-block-title">💰 Αμοιβές Συνεργείων</div>', unsafe_allow_html=True)
     st.markdown('<div class="dashboard-block-subtitle">Ανά κατηγορία εργασιών (Υδραυλικός, Ηλεκτρολόγος, Πλακάς, κλπ.)</div>', unsafe_allow_html=True)
-    
+
     fee_cards = calculate_fee_status(df_fee, df_exp)
-    
+
     if fee_cards.empty:
         st.info("📋 Δεν υπάρχουν ακόμη καταχωρημένες αμοιβές συνεργείων. Προσθέστε από το μενού '💼 Αμοιβές'.")
     else:
@@ -668,7 +649,7 @@ def render_dashboard(df_exp: pd.DataFrame, df_fee: pd.DataFrame, df_material: pd
                 target_me = float(card.get("Στόχος Εγώ", total / 2))
                 target_father = float(card.get("Στόχος Πατέρας", total / 2))
                 description = card.get("Περιγραφή", f"Αμοιβή {category}")
-                
+
                 render_split_card(
                     title=f"👷 {category}",
                     subtitle=description,
@@ -678,17 +659,14 @@ def render_dashboard(df_exp: pd.DataFrame, df_fee: pd.DataFrame, df_material: pd
                     target_me=target_me,
                     target_father=target_father
                 )
-    
+
     st.markdown("---")
-    
-    # ============================================
-    # 2. ΚΑΡΤΕΣ ΥΛΙΚΩΝ & ΛΟΙΠΩΝ ΕΞΟΔΩΝ
-    # ============================================
+
     st.markdown('<div class="dashboard-block-title">📦 Υλικά & Λοιπά Έξοδα</div>', unsafe_allow_html=True)
     st.markdown('<div class="dashboard-block-subtitle">Ανά κατηγορία υλικών (πλακάκια, ηλεκτρολογικά, υδραυλικά, κλπ.)</div>', unsafe_allow_html=True)
-    
+
     material_cards = calculate_material_split_from_expenses(df_exp)
-    
+
     if material_cards.empty:
         st.info("📦 Δεν υπάρχουν ακόμη καταχωρημένα υλικά. Προσθέστε έξοδα με Είδος='Υλικά' από το μενού '💰 Έξοδα'.")
     else:
@@ -699,7 +677,7 @@ def render_dashboard(df_exp: pd.DataFrame, df_fee: pd.DataFrame, df_material: pd
                 total = float(card.get("Σύνολο", 0))
                 paid_me = float(card.get("Εγώ", 0))
                 paid_father = float(card.get("Πατέρας", 0))
-                
+
                 render_split_card(
                     title=f"🔨 {category}",
                     subtitle="Υλικά και αναλώσιμα",
@@ -709,14 +687,11 @@ def render_dashboard(df_exp: pd.DataFrame, df_fee: pd.DataFrame, df_material: pd
                     target_me=None,
                     target_father=None
                 )
-    
+
     st.markdown("---")
-    
-    # ============================================
-    # 3. TIMELINE / GANTT
-    # ============================================
+
     st.markdown('<div class="dashboard-block-title">🗓️ Χρονοδιάγραμμα Εργασιών</div>', unsafe_allow_html=True)
-    
+
     timeline_df = prepare_timeline_df(df_task)
     if timeline_df.empty:
         st.info("📅 Δεν υπάρχουν ακόμη εργασίες με ημερομηνίες. Προσθέστε από το μενού '🗓️ Timeline'.")
@@ -729,7 +704,7 @@ def render_dashboard(df_exp: pd.DataFrame, df_fee: pd.DataFrame, df_material: pd
             color="Resource",
             color_discrete_map={
                 "To Do": "#c9a96b",
-                "Doing": "#3f7d6b", 
+                "Doing": "#3f7d6b",
                 "Done": "#915f35",
                 "Εκκρεμεί": "#c9a96b"
             },
@@ -738,17 +713,27 @@ def render_dashboard(df_exp: pd.DataFrame, df_fee: pd.DataFrame, df_material: pd
         gantt.update_layout(height=450, margin=dict(l=10, r=10, t=50, b=10))
         gantt.update_yaxes(autorange="reversed")
         st.plotly_chart(gantt, use_container_width=True)
-        
+
         with st.expander("📋 Αναλυτική λίστα εργασιών"):
             show_table(df_task)
 
 
 def render_expenses(df_exp: pd.DataFrame):
     st.subheader("💰 Έξοδα")
-    
+
     with st.expander("➕ Νέο έξοδο", expanded=False):
-                        notes = st.text_input("Σημειώσεις")
-            
+        with st.form("expense_add_form", clear_on_submit=True):
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                expense_date = st.date_input("Ημερομηνία")
+                category = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES)
+            with c2:
+                expense_type = st.selectbox("Είδος", EXPENSE_TYPES)
+                payer = st.selectbox("Πληρωτής", PAYERS)
+            with c3:
+                amount = st.number_input("Ποσό (€)", min_value=0.0, step=10.0)
+                notes = st.text_input("Σημειώσεις")
+
             if st.form_submit_button("Αποθήκευση"):
                 new_data = {
                     "Ημερομηνία": str(expense_date),
@@ -772,7 +757,7 @@ def render_expenses(df_exp: pd.DataFrame):
 
     st.markdown("### Στατιστική Εικόνα")
     tabs = st.tabs(["📊 Ομαδοποιημένα", "📋 Αναλυτικά", "🗑️ Διαγραφή"])
-    
+
     with tabs[0]:
         group_view = temp.groupby(["Κατηγορία", "Είδος"], as_index=False)["Ποσό"].sum()
         st.dataframe(group_view, use_container_width=True)
@@ -783,6 +768,8 @@ def render_expenses(df_exp: pd.DataFrame):
 
     with tabs[2]:
         labels = {}
+        for _, row in temp.iterrows
+                labels = {}
         for _, row in temp.iterrows():
             rid = safe_text(row["_id"])
             labels[rid] = f"{row['Ημερομηνία']} | {row['Κατηγορία']} | {format_currency(row['Ποσό'])}"
@@ -1165,7 +1152,6 @@ def render_calculator():
 # MAIN - Load Data & Routing
 # ============================================
 
-# Φόρτωση όλων των δεδομένων
 df_expenses = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
 df_fees = safe_read(SHEET_FEES, FEE_COLUMNS)
 df_contacts = safe_read(SHEET_CONTACTS, CONTACT_COLUMNS)
@@ -1175,14 +1161,12 @@ df_tasks = safe_read(SHEET_TASKS, TASK_COLUMNS)
 df_offers = safe_read(SHEET_OFFERS, OFFER_COLUMNS)
 df_gallery = safe_read(SHEET_GALLERY, GALLERY_COLUMNS)
 
-# Sidebar
 st.sidebar.markdown("### Πλοήγηση")
 menu = st.sidebar.selectbox("Μενού", MENU_OPTIONS, index=0)
 st.sidebar.markdown("---")
 st.sidebar.caption(f"Τελευταία ενημέρωση: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 st.sidebar.caption("Κατασκευαστής εφαρμογής: Σκλίβας Δημήτριος")
 
-# Routing
 if menu == "🏠 Dashboard":
     render_dashboard(df_expenses, df_fees, df_materials, df_loans, df_tasks, df_offers, df_gallery)
 elif menu == "💰 Έξοδα":
