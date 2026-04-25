@@ -497,20 +497,20 @@ def calculate_fee_status(df_fees: pd.DataFrame, df_expenses: pd.DataFrame) -> pd
          paid_father = relevant.loc[relevant["Πληρωτής"] == "Πατέρας", "Ποσό"].sum() if not relevant.empty else 0
          total_paid = paid_me + paid_father
          rows.append({
-     "_id": safe_text(fee["_id"]),
-     "Κατηγορία": category,
-     "Περιγραφή": description,
-     "Συνολικό Ποσό": total_amount,
-     "Στόχος Εγώ": share_me,
-     "Στόχος Πατέρας": share_father,
-     "Πλήρωσα Εγώ": paid_me,
-     "Πλήρωσε Πατέρας": paid_father,
-     "Υπόλοιπο Εγώ": max(share_me - paid_me, 0),
-     "Υπόλοιπο Πατέρας": max(share_father - paid_father, 0),
-     "Συνολικό Υπόλοιπο": max(total_amount - total_paid, 0),
-     "Σημειώσεις": safe_text(fee["Σημειώσεις"]),
-     })
-     return pd.DataFrame(rows)
+         "_id": safe_text(fee["_id"]),
+         "Κατηγορία": category,
+         "Περιγραφή": description,
+         "Συνολικό Ποσό": total_amount,
+         "Στόχος Εγώ": share_me,
+         "Στόχος Πατέρας": share_father,
+         "Πλήρωσα Εγώ": paid_me,
+         "Πλήρωσε Πατέρας": paid_father,
+         "Υπόλοιπο Εγώ": max(share_me - paid_me, 0),
+         "Υπόλοιπο Πατέρας": max(share_father - paid_father, 0),
+         "Συνολικό Υπόλοιπο": max(total_amount - total_paid, 0),
+         "Σημειώσεις": safe_text(fee["Σημειώσεις"]),
+         })
+         return pd.DataFrame(rows)
 
 
 def calculate_non_fee_expense_split(df_expenses: pd.DataFrame) -> pd.DataFrame:
