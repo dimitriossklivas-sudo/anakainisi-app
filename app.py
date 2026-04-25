@@ -130,7 +130,7 @@ def safe_read(sheet_name, columns, ttl_seconds=60):
 
 
 def safe_write(sheet_name, df):
-    retries = 2
+    retries = 4
     candidates = [sheet_name] + SHEET_ALIASES.get(sheet_name, [])
     last_error = None
     for worksheet_name in candidates:
@@ -142,8 +142,9 @@ def safe_write(sheet_name, df):
                 last_error = exc
                 message = str(exc)
                 is_rate_limited = "429" in message or "RATE_LIMIT_EXCEEDED" in message or "RESOURCE_EXHAUSTED" in message
+                is_transient_server = "500" in message or "INTERNAL" in message or "503" in message or "UNAVAILABLE" in message
                 is_not_found = "404" in message
-                if is_rate_limited and attempt < retries - 1:
+                if (is_rate_limited or is_transient_server) and attempt < retries - 1:
                     wait_seconds = 0.4 * (attempt + 1)
                     time.sleep(wait_seconds)
                     continue
@@ -151,7 +152,10 @@ def safe_write(sheet_name, df):
                     break
                 st.error(f"Σφάλμα εγγραφής στο '{worksheet_name}': {exc}")
                 return False
-    st.error(f"Σφάλμα εγγραφής στο '{sheet_name}': {last_error}")
+    st.error(
+        f"Αποτυχία εγγραφής στο '{sheet_name}' μετά από επαναπροσπάθειες. "
+        f"Πιθανό προσωρινό πρόβλημα Google Sheets. ({last_error})"
+    )
     return False
 
 
