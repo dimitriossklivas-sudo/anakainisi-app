@@ -539,81 +539,81 @@ def calculate_non_fee_expense_split(df_expenses: pd.DataFrame) -> pd.DataFrame:
 
 def calculate_material_summary(df_materials: pd.DataFrame) -> pd.DataFrame:
  if df_materials.empty:
- return pd.DataFrame()
- materials = df_materials.copy()
- materials["Σύνολο"] = money_series(materials, "Σύνολο")
- return materials.groupby("Κατηγορία", as_index=False)["Σύνολο"].sum().sort_values("Σύνολο", ascending=False)
+     return pd.DataFrame()
+     materials = df_materials.copy()
+     materials["Σύνολο"] = money_series(materials, "Σύνολο")
+     return materials.groupby("Κατηγορία", as_index=False)["Σύνολο"].sum().sort_values("Σύνολο", ascending=False)
 
 
 def calculate_material_split_from_expenses(df_expenses: pd.DataFrame) -> pd.DataFrame:
  if df_expenses.empty:
- return pd.DataFrame()
- exp = df_expenses.copy()
- exp["Ποσό"] = money_series(exp, "Ποσό")
- exp = exp[exp["Είδος"] == "Υλικά"].copy()
+     return pd.DataFrame()
+     exp = df_expenses.copy()
+     exp["Ποσό"] = money_series(exp, "Ποσό")
+     exp = exp[exp["Είδος"] == "Υλικά"].copy()
  if exp.empty:
- return pd.DataFrame()
- rows = []
- for category in sorted(exp["Κατηγορία"].dropna().astype(str).unique()):
- subset = exp[exp["Κατηγορία"] == category]
- total = subset["Ποσό"].sum()
- paid_me = subset.loc[subset["Πληρωτής"] == "Εγώ", "Ποσό"].sum()
- paid_father = subset.loc[subset["Πληρωτής"] == "Πατέρας", "Ποσό"].sum()
- rows.append({
- "Κατηγορία": category,
- "Σύνολο": total,
- "Εγώ": paid_me,
- "Πατέρας": paid_father,
- "Υπόλοιπο": max(total - paid_me - paid_father, 0),
- })
- return pd.DataFrame(rows).sort_values("Σύνολο", ascending=False)
+     return pd.DataFrame()
+     rows = []
+     for category in sorted(exp["Κατηγορία"].dropna().astype(str).unique()):
+         subset = exp[exp["Κατηγορία"] == category]
+         total = subset["Ποσό"].sum()
+         paid_me = subset.loc[subset["Πληρωτής"] == "Εγώ", "Ποσό"].sum()
+         paid_father = subset.loc[subset["Πληρωτής"] == "Πατέρας", "Ποσό"].sum()
+         rows.append({
+         "Κατηγορία": category,
+         "Σύνολο": total,
+         "Εγώ": paid_me,
+         "Πατέρας": paid_father,
+         "Υπόλοιπο": max(total - paid_me - paid_father, 0),
+        })
+         return pd.DataFrame(rows).sort_values("Σύνολο", ascending=False)
 
 
 def calculate_loan_installment(principal: float, annual_rate: float, months: int) -> float:
  if months <= 0:
- return 0.0
- monthly_rate = annual_rate / 100 / 12
+     return 0.0
+     monthly_rate = annual_rate / 100 / 12
  if monthly_rate == 0:
- return principal / months
- return principal * (monthly_rate * (1 + monthly_rate) ** months) / ((1 + monthly_rate) ** months - 1)
+     return principal / months
+     return principal * (monthly_rate * (1 + monthly_rate) ** months) / ((1 + monthly_rate) ** months - 1)
 
 
 def room_progress_summary(df_gal: pd.DataFrame) -> pd.DataFrame:
  if df_gal.empty:
- return pd.DataFrame(columns=["Χώρος", "Πρόοδος"])
- rows = []
- for room in sorted(df_gal["Χώρος"].dropna().astype(str).unique()):
- room_df = df_gal[df_gal["Χώρος"] == room]
- before_count = len(room_df[room_df["Τύπος"] == "Before"])
- after_count = len(room_df[room_df["Τύπος"] == "After"])
- progress_count = len(room_df[room_df["Τύπος"] == "Progress"])
- material_count = len(room_df[room_df["Τύπος"] == "Material"])
- score = min(100, after_count * 55 + progress_count * 20 + material_count * 10 + before_count * 5)
- rows.append({"Χώρος": room, "Πρόοδος": score})
- return pd.DataFrame(rows)
+     return pd.DataFrame(columns=["Χώρος", "Πρόοδος"])
+     rows = []
+     for room in sorted(df_gal["Χώρος"].dropna().astype(str).unique()):
+         room_df = df_gal[df_gal["Χώρος"] == room]
+         before_count = len(room_df[room_df["Τύπος"] == "Before"])
+         after_count = len(room_df[room_df["Τύπος"] == "After"])
+         progress_count = len(room_df[room_df["Τύπος"] == "Progress"])
+         material_count = len(room_df[room_df["Τύπος"] == "Material"])
+         score = min(100, after_count * 55 + progress_count * 20 + material_count * 10 + before_count * 5)
+         rows.append({"Χώρος": room, "Πρόοδος": score})
+         return pd.DataFrame(rows)
 
 
 def prepare_timeline_df(df_tasks: pd.DataFrame) -> pd.DataFrame:
  if df_tasks.empty:
- return pd.DataFrame()
- rows = []
- for _, row in df_tasks.iterrows():
- task_name = safe_text(row["Εργασία"])
+     return pd.DataFrame()
+     rows =    []
+     for _, row in df_tasks.iterrows():
+         task_name = safe_text(row["Εργασία"])
  if not task_name:
- continue
- start = parse_date(row.get("Ημερομηνία_Έναρξης"), date.today())
- end = parse_date(row.get("Ημερομηνία_Λήξης"), start + timedelta(days=1) if start else date.today() + timedelta(days=1))
+     continue
+     start = parse_date(row.get("Ημερομηνία_Έναρξης"), date.today())
+     end = parse_date(row.get("Ημερομηνία_Λήξης"), start + timedelta(days=1) if start else date.today() + timedelta(days=1))
  if start and end and end < start:
- end = start
- rows.append({
- "Εργασία": task_name,
- "Χώρος": safe_text(row.get("Χώρος"), "Άλλο"),
- "Κατάσταση": safe_text(row.get("Κατάσταση"), "To Do"),
- "Start": start,
- "End": end,
- "Ανάθεση": safe_text(row.get("Ανάθεση"), ""),
- })
- return pd.DataFrame(rows)
+     end = start
+     rows.append({
+     "Εργασία": task_name,
+     "Χώρος": safe_text(row.get("Χώρος"), "Άλλο"),
+     "Κατάσταση": safe_text(row.get("Κατάσταση"), "To Do"),
+     "Start": start,
+     "End": end,
+     "Ανάθεση": safe_text(row.get("Ανάθεση"), ""),
+     })
+     return pd.DataFrame(rows)
 
 
 def render_dashboard_section_title(title: str, subtitle: str):
@@ -644,37 +644,37 @@ def render_dashboard(df_exp: pd.DataFrame, df_fee: pd.DataFrame, df_material: pd
  top4.metric("Ενεργές εργασίες", int((df_task["Κατάσταση"] == "Doing").sum()) if not df_task.empty else 0)
  render_dashboard_section_title("Κάρτα αμοιβών συνεργείων", "Ακριβώς όπως το σκίτσο σου: μία κάρτα ανά κατηγορία με σύνολο, Εγώ, Πατέρας.")
  if fee_status_df.empty:
- st.info("Δεν υπάρχουν ακόμη αμοιβές.")
- else:
- fee_cols = st.columns(2)
- for idx, (_, row) in enumerate(fee_status_df.iterrows()):
- with fee_cols[idx % 2]:
- render_split_card(
- f"Κάρτα {safe_text(row['Κατηγορία'])}",
- safe_text(row["Περιγραφή"]),
- float(row["Συνολικό Ποσό"]),
- float(row["Πλήρωσα Εγώ"]),
- float(row["Πλήρωσε Πατέρας"]),
- float(row["Στόχος Εγώ"]),
- float(row["Στόχος Πατέρας"]),
- )
- render_dashboard_section_title("Κάρτα υλικών", "Μία κάρτα ανά κατηγορία για υλικά και λοιπά έξοδα.")
+     st.info("Δεν υπάρχουν ακόμη αμοιβές.")
+     else:
+     fee_cols = st.columns(2)
+     for idx, (_, row) in enumerate(fee_status_df.iterrows()):
+         with fee_cols[idx % 2]:
+         render_split_card(
+         f"Κάρτα {safe_text(row['Κατηγορία'])}",
+         safe_text(row["Περιγραφή"]),
+         float(row["Συνολικό Ποσό"]),
+         float(row["Πλήρωσα Εγώ"]),
+         float(row["Πλήρωσε Πατέρας"]),
+         float(row["Στόχος Εγώ"]),
+         float(row["Στόχος Πατέρας"]),
+         )    
+         render_dashboard_section_title("Κάρτα υλικών", "Μία κάρτα ανά κατηγορία για υλικά και λοιπά έξοδα.")
  if material_split_df.empty:
- st.info("Δεν υπάρχουν ακόμη καταχωρημένα υλικά στα έξοδα.")
- else:
- material_cols = st.columns(2)
- for idx, (_, row) in enumerate(material_split_df.iterrows()):
- with material_cols[idx % 2]:
- render_split_card(
- f"Κάρτα {safe_text(row['Κατηγορία'])}",
- "Υλικά κατηγορίας",
- float(row["Σύνολο"]),
- float(row["Εγώ"]),
- float(row["Πατέρας"]),
- )
- render_dashboard_section_title("Timeline / Gantt", "Το project planning σε χρονογραμμή για να βλέπεις τι ξεκινά και τι λήγει.")
+     st.info("Δεν υπάρχουν ακόμη καταχωρημένα υλικά στα έξοδα.")
+     else:
+     material_cols = st.columns(2)
+     for idx, (_, row) in enumerate(material_split_df.iterrows()):
+         with material_cols[idx % 2]:
+         render_split_card(
+         f"Κάρτα {safe_text(row['Κατηγορία'])}",
+         "Υλικά κατηγορίας",
+         float(row["Σύνολο"]),
+         float(row["Εγώ"]),
+         float(row["Πατέρας"]),
+         )
+         render_dashboard_section_title("Timeline / Gantt", "Το project planning σε χρονογραμμή για να βλέπεις τι ξεκινά και τι λήγει.")
  if timeline_df.empty:
- st.info("Δεν υπάρχουν ακόμη εργασίες με timeline.")
+     st.info("Δεν υπάρχουν ακόμη εργασίες με timeline.")
  else:
  gantt = px.timeline(
  timeline_df,
