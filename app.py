@@ -694,17 +694,17 @@ def render_dashboard(df_exp: pd.DataFrame, df_fee: pd.DataFrame, df_material: pd
 def render_expenses(df_exp: pd.DataFrame):
  st.subheader("💰 Έξοδα")
  with st.expander("➕ Νέο έξοδο"):
- with st.form("expense_add_form", clear_on_submit=True):
-     c1, c2, c3 = st.columns(3)
- with c1:
-     expense_date = st.date_input("Ημερομηνία")
-     category = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES)
- with c2:
-     expense_type = st.selectbox("Είδος", EXPENSE_TYPES)
-     payer = st.selectbox("Πληρωτής", PAYERS)
- with c3:
-     amount = st.number_input("Ποσό (€)", min_value=0.0, step=10.0)
-     notes = st.text_input("Σημειώσεις")
+     with st.form("expense_add_form", clear_on_submit=True):
+         c1, c2, c3 = st.columns(3)
+         with c1:
+             expense_date = st.date_input("Ημερομηνία")
+             category = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES)
+             with c2:
+                 expense_type = st.selectbox("Είδος", EXPENSE_TYPES)
+                 payer = st.selectbox("Πληρωτής", PAYERS)
+                 with c3:
+                     amount = st.number_input("Ποσό (€)", min_value=0.0, step=10.0)
+                     notes = st.text_input("Σημειώσεις")
  if st.form_submit_button("Αποθήκευση"):
      updated_df = append_row(
      df_exp,
