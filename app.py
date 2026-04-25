@@ -594,15 +594,39 @@ def room_progress_summary(df_gal: pd.DataFrame) -> pd.DataFrame:
 
 
 def prepare_timeline_df(df_tasks: pd.DataFrame) -> pd.DataFrame:
- if df_tasks.empty:
-     return pd.DataFrame()
-     rows =    []
-     for _, row in df_tasks.iterrows():
-         task_name = safe_text(row["Εργασία"])
- if not task_name:
-     continue
-     start = parse_date(row.get("Ημερομηνία_Έναρξης"), date.today())
-     end = parse_date(row.get("Ημερομηνία_Λήξης"), start + timedelta(days=1) if start else date.today() + timedelta(days=1))
+    # 1. Αν το DataFrame είναι άδειο, επέστρεψε αμέσως ένα άδειο DataFrame
+    if df_tasks.empty:
+        return pd.DataFrame()
+    
+    rows = []
+    
+    # 2. Loop μέσα σε όλες τις γραμμές των εργασιών
+    for _, row in df_tasks.iterrows():
+        # Χρήση .get() για να αποφύγουμε σφάλματα αν λείπει η στήλη
+        task_name = safe_text(row.get("Εργασία", ""))
+        
+        # 3. Αν δεν υπάρχει όνομα εργασίας, προσπέρασε αυτή τη γραμμή (continue)
+        if not task_name:
+            continue
+        
+        # 4. Υπολογισμός ημερομηνιών - Αυτές οι γραμμές εκτελούνται ΜΟΝΟ αν υπάρχει task_name
+        # Γιατί είναι στην ίδια ευθεία (level) με το 'if not task_name'
+        start = parse_date(row.get("Ημερομηνία_Έναρξης"), date.today())
+        
+        # Ορισμός default λήξης (1 μέρα μετά την έναρξη)
+        default_end = start + timedelta(days=1) if start else date.today() + timedelta(days=1)
+        end = parse_date(row.get("Ημερομηνία_Λήξης"), default_end)
+        
+        # Προσθήκη της έγκυρης γραμμής στη λίστα
+        rows.append({
+            "Task": task_name,
+            "Start": start,
+            "Finish": end,
+            "Resource": safe_text(row.get("Κατάσταση", "Εκκρεμεί"))
+        })
+        
+    # 5. Επιστροφή του τελικού DataFrame για το Timeline
+    return pd.DataFrame(rows)
  if start and end and end < start:
      end = start
      rows.append({
