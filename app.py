@@ -91,9 +91,9 @@ def format_currency(value):
     return f"{to_money(value):,.2f} €"
 
 
-def safe_read(sheet_name, columns):
+def safe_read(sheet_name, columns, ttl_seconds=60):
     try:
-        df = conn.read(worksheet=sheet_name, ttl=0)
+        df = conn.read(worksheet=sheet_name, ttl=ttl_seconds)
         if df is None or df.empty:
             return pd.DataFrame(columns=columns)
         df = df.dropna(how="all")
@@ -276,7 +276,7 @@ def delete_ui(df, label, key):
 # -----------------------------
 # Pages
 # -----------------------------
-def render_dashboard(df_exp, df_fee, df_material, df_loan, df_task, df_off, df_gal):
+def render_dashboard(df_exp, df_fee, df_material, df_task):
     st.title("🏠 Dashboard Ανακαίνισης v2")
 
     total_expenses = money_series(df_exp, "Ποσό").sum()
@@ -629,15 +629,6 @@ def render_calculator():
 # -----------------------------
 st.sidebar.markdown("### Πλοήγηση")
 
-df_expenses = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
-df_fees = safe_read(SHEET_FEES, FEE_COLUMNS)
-df_contacts = safe_read(SHEET_CONTACTS, CONTACT_COLUMNS)
-df_materials = safe_read(SHEET_MATERIALS, MATERIAL_COLUMNS)
-df_loans = safe_read(SHEET_LOANS, LOAN_COLUMNS)
-df_tasks = safe_read(SHEET_TASKS, TASK_COLUMNS)
-df_offers = safe_read(SHEET_OFFERS, OFFER_COLUMNS)
-df_gallery = safe_read(SHEET_GALLERY, GALLERY_COLUMNS)
-
 MENU_OPTIONS = [
     "🏠 Dashboard",
     "💰 Έξοδα",
@@ -656,26 +647,41 @@ MENU_OPTIONS = [
 menu = st.sidebar.selectbox("Μενού", MENU_OPTIONS)
 
 if menu == "🏠 Dashboard":
-    render_dashboard(df_expenses, df_fees, df_materials, df_loans, df_tasks, df_offers, df_gallery)
+    df_expenses = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
+    df_fees = safe_read(SHEET_FEES, FEE_COLUMNS)
+    df_materials = safe_read(SHEET_MATERIALS, MATERIAL_COLUMNS)
+    df_tasks = safe_read(SHEET_TASKS, TASK_COLUMNS)
+    render_dashboard(df_expenses, df_fees, df_materials, df_tasks)
 elif menu == "💰 Έξοδα":
+    df_expenses = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
     render_expenses(df_expenses)
 elif menu == "💼 Αμοιβές":
+    df_fees = safe_read(SHEET_FEES, FEE_COLUMNS)
     render_fees(df_fees)
 elif menu == "📦 Υλικά":
+    df_materials = safe_read(SHEET_MATERIALS, MATERIAL_COLUMNS)
     render_materials(df_materials)
 elif menu == "📞 Επαφές":
+    df_contacts = safe_read(SHEET_CONTACTS, CONTACT_COLUMNS)
     render_contacts(df_contacts)
 elif menu == "🏦 Δάνειο":
+    df_loans = safe_read(SHEET_LOANS, LOAN_COLUMNS)
     render_loans(df_loans)
 elif menu == "🗓️ Timeline":
+    df_tasks = safe_read(SHEET_TASKS, TASK_COLUMNS)
     render_timeline_page(df_tasks)
 elif menu == "📋 Εργασίες":
+    df_tasks = safe_read(SHEET_TASKS, TASK_COLUMNS)
     render_tasks(df_tasks)
 elif menu == "💼 Προσφορές":
+    df_offers = safe_read(SHEET_OFFERS, OFFER_COLUMNS)
     render_offers(df_offers)
 elif menu == "📸 Gallery":
+    df_gallery = safe_read(SHEET_GALLERY, GALLERY_COLUMNS)
     render_gallery(df_gallery)
 elif menu == "📊 Αναλύσεις":
+    df_expenses = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
+    df_materials = safe_read(SHEET_MATERIALS, MATERIAL_COLUMNS)
     render_analytics(df_expenses, df_materials)
 elif menu == "🧮 Calculator":
     render_calculator()
