@@ -417,17 +417,17 @@ def render_split_card(title: str, subtitle: str, total_amount: float, paid_me: f
  )
  render_progress_line("Σύνολο καλυμμένο", total_paid, total_amount, "split-total", f"{format_currency(total_paid)} / {format_currency(total_amount)}")
  if target_me is not None and target_me > 0:
- remain_me = max(target_me - paid_me, 0)
- render_progress_line("Εγώ", paid_me, target_me, "split-me", f"{format_currency(paid_me)} από {format_currency(target_me)} | Υπόλοιπο {format_currency(remain_me)}")
- else:
- render_progress_line("Εγώ", paid_me, total_amount, "split-me", f"{format_currency(paid_me)}")
+     remain_me = max(target_me - paid_me, 0)
+     render_progress_line("Εγώ", paid_me, target_me, "split-me", f"{format_currency(paid_me)} από {format_currency(target_me)} | Υπόλοιπο {format_currency(remain_me)}")
+     else:
+     render_progress_line("Εγώ", paid_me, total_amount, "split-me", f"{format_currency(paid_me)}")
  if target_father is not None and target_father > 0:
- remain_father = max(target_father - paid_father, 0)
- render_progress_line("Πατέρας", paid_father, target_father, "split-father", f"{format_currency(paid_father)} από {format_currency(target_father)} | Υπόλοιπο {format_currency(remain_father)}")
- else:
- render_progress_line("Πατέρας", paid_father, total_amount, "split-father", f"{format_currency(paid_father)}")
- render_progress_line("Απομένει", remaining, total_amount, "split-remaining", f"{format_currency(remaining)}")
- st.markdown("</div>", unsafe_allow_html=True)
+     remain_father = max(target_father - paid_father, 0)
+     render_progress_line("Πατέρας", paid_father, target_father, "split-father", f"{format_currency(paid_father)} από {format_currency(target_father)} | Υπόλοιπο {format_currency(remain_father)}")
+     else:
+     render_progress_line("Πατέρας", paid_father, total_amount, "split-father", f"{format_currency(paid_father)}")
+     render_progress_line("Απομένει", remaining, total_amount, "split-remaining", f"{format_currency(remaining)}")
+     st.markdown("</div>", unsafe_allow_html=True)
 
 
 def make_bar_chart(df: pd.DataFrame, x: str, y: str, title: str):
