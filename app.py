@@ -301,9 +301,10 @@ def render_dashboard(df_exp, df_fee, df_material, df_loan, df_task, df_off, df_g
             with cols[i % 2]:
                 st.markdown(f"**👷 {row['Κατηγορία']}**")
                 st.caption(row["Περιγραφή"])
+                per_person_target = to_money(row["Συνολικό"]) / 2
                 render_progress_line("Σύνολο", row["Πλήρωσα Εγώ"] + row["Πλήρωσε Πατέρας"], row["Συνολικό"], "#c9a96b")
-                render_progress_line("Εγώ", row["Πλήρωσα Εγώ"], row["Συνολικό"], "#3f7d6b")
-                render_progress_line("Πατέρας", row["Πλήρωσε Πατέρας"], row["Συνολικό"], "#915f35")
+                render_progress_line("Εγώ", row["Πλήρωσα Εγώ"], per_person_target, "#3f7d6b")
+                render_progress_line("Πατέρας", row["Πλήρωσε Πατέρας"], per_person_target, "#915f35")
                 st.divider()
 
     st.subheader("📦 Υλικά")
