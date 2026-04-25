@@ -32,6 +32,17 @@ SHEET_TASKS = "Progress"
 SHEET_OFFERS = "Offers"
 SHEET_GALLERY = "Gallery"
 
+SHEET_ALIASES = {
+    "Expenses": ["Expense", "Έξοδα"],
+    "Fees": ["Fee", "Αμοιβές"],
+    "Contacts": ["Contact", "Επαφές"],
+    "Materials": ["Material", "Υλικά"],
+    "Loan": ["Loans", "Δάνειο"],
+    "Progress": ["Tasks", "Timeline", "Χρονοδιάγραμμα"],
+    "Offers": ["Offer", "Προσφορές"],
+    "Gallery": ["Photos", "Φωτογραφίες"],
+}
+
 EXPENSE_COLUMNS = ["_id", "Ημερομηνία", "Κατηγορία", "Είδος", "Ποσό", "Πληρωτής", "Σημειώσεις"]
 FEE_COLUMNS = ["_id", "Κατηγορία", "Περιγραφή", "Ποσό", "Σημειώσεις"]
 CONTACT_COLUMNS = ["_id", "Όνομα", "Ρόλος", "Τηλέφωνο", "Email", "Περιοχή", "Σημειώσεις"]
@@ -93,41 +104,54 @@ def format_currency(value):
 
 
 def safe_read(sheet_name, columns, ttl_seconds=60):
-    try:
-        df = conn.read(worksheet=sheet_name, ttl=ttl_seconds)
-        if df is None or df.empty:
+    candidates = [sheet_name] + SHEET_ALIASES.get(sheet_name, [])
+    last_error = None
+    for worksheet_name in candidates:
+        try:
+            df = conn.read(worksheet=worksheet_name, ttl=ttl_seconds)
+            if df is None or df.empty:
+                return pd.DataFrame(columns=columns)
+            df = df.dropna(how="all")
+            for col in columns:
+                if col not in df.columns:
+                    df[col] = ""
+            if "_id" not in df.columns:
+                df["_id"] = ""
+            df["_id"] = df["_id"].astype(str)
+            return df[columns]
+        except Exception as exc:
+            last_error = exc
+            if "404" in str(exc):
+                continue
+            st.warning(f"Αδυναμία ανάγνωσης sheet '{worksheet_name}': {exc}")
             return pd.DataFrame(columns=columns)
-        df = df.dropna(how="all")
-        for col in columns:
-            if col not in df.columns:
-                df[col] = ""
-        if "_id" not in df.columns:
-            df["_id"] = ""
-        df["_id"] = df["_id"].astype(str)
-        return df[columns]
-    except Exception as exc:
-        st.warning(f"Αδυναμία ανάγνωσης sheet '{sheet_name}': {exc}")
-        return pd.DataFrame(columns=columns)
+    st.warning(f"Αδυναμία ανάγνωσης sheet '{sheet_name}'. Ελέγξτε το όνομα worksheet. ({last_error})")
+    return pd.DataFrame(columns=columns)
 
 
 def safe_write(sheet_name, df):
-    retries = 3
-    for attempt in range(retries):
-        try:
-            conn.update(worksheet=sheet_name, data=df)
-            # Ensure next rerun reads fresh data after a write.
-            st.cache_data.clear()
-            return True
-        except Exception as exc:
-            message = str(exc)
-            is_rate_limited = "429" in message or "RATE_LIMIT_EXCEEDED" in message or "RESOURCE_EXHAUSTED" in message
-            if is_rate_limited and attempt < retries - 1:
-                wait_seconds = 1.5 * (attempt + 1)
-                st.warning(f"Προσωρινός περιορισμός Google Sheets. Νέα προσπάθεια σε {wait_seconds:.1f}s...")
-                time.sleep(wait_seconds)
-                continue
-            st.error(f"Σφάλμα εγγραφής στο '{sheet_name}': {exc}")
-            return False
+    retries = 2
+    candidates = [sheet_name] + SHEET_ALIASES.get(sheet_name, [])
+    last_error = None
+    for worksheet_name in candidates:
+        for attempt in range(retries):
+            try:
+                conn.update(worksheet=worksheet_name, data=df)
+                return True
+            except Exception as exc:
+                last_error = exc
+                message = str(exc)
+                is_rate_limited = "429" in message or "RATE_LIMIT_EXCEEDED" in message or "RESOURCE_EXHAUSTED" in message
+                is_not_found = "404" in message
+                if is_rate_limited and attempt < retries - 1:
+                    wait_seconds = 0.4 * (attempt + 1)
+                    time.sleep(wait_seconds)
+                    continue
+                if is_not_found:
+                    break
+                st.error(f"Σφάλμα εγγραφής στο '{worksheet_name}': {exc}")
+                return False
+    st.error(f"Σφάλμα εγγραφής στο '{sheet_name}': {last_error}")
     return False
 
 
@@ -344,6 +368,7 @@ def render_dashboard(df_exp, df_fee, df_material, df_task):
 
 def render_expenses(df):
     st.subheader("💰 Έξοδα")
+    current_df = st.session_state.get("expenses_local_df", df)
     with st.expander("➕ Νέο έξοδο"):
         with st.form("expense_form"):
             col1, col2 = st.columns(2)
@@ -364,21 +389,26 @@ def render_expenses(df):
                     "Πληρωτής": payer,
                     "Σημειώσεις": notes,
                 }
-                updated = append_row(df, new, EXPENSE_COLUMNS)
-                if safe_write(SHEET_EXPENSES, updated):
-                    st.success("Αποθηκεύτηκε")
+                updated = append_row(current_df, new, EXPENSE_COLUMNS)
+                with st.spinner("Αποθήκευση..."):
+                    ok = safe_write(SHEET_EXPENSES, updated)
+                if ok:
+                    st.session_state["expenses_local_df"] = updated
+                    st.toast("Αποθηκεύτηκε", icon="✅")
                     st.rerun()
 
-    edited = editable_sheet(df, EXPENSE_COLUMNS, "expenses_editor", num_cols=["Ποσό"])
+    edited = editable_sheet(current_df, EXPENSE_COLUMNS, "expenses_editor", num_cols=["Ποσό"])
     col_a, col_b = st.columns(2)
     with col_a:
         if st.button("💾 Αποθήκευση αλλαγών", key="save_exp"):
             if safe_write(SHEET_EXPENSES, edited):
+                st.session_state["expenses_local_df"] = edited
                 st.success("Οι αλλαγές αποθηκεύτηκαν.")
                 st.rerun()
     with col_b:
         new_df, should_delete = delete_ui(edited, "Επέλεξε _id για διαγραφή", "del_exp")
         if should_delete and safe_write(SHEET_EXPENSES, new_df):
+            st.session_state["expenses_local_df"] = new_df
             st.success("Η εγγραφή διαγράφηκε.")
             st.rerun()
 
