@@ -383,6 +383,8 @@ def clamp_percent(value: float, total: float) -> float:
     if total <= 0:
         return 0.0
     return max(0.0, min(100.0, (value / total) * 100))
+
+
 def render_progress_line(label: str, value: float, total: float, css_class: str, right_text: str | None = None):
  pct = clamp_percent(value, total)
  right = right_text or f"{format_currency(value)} / {format_currency(total)}"
@@ -400,6 +402,8 @@ def render_progress_line(label: str, value: float, total: float, css_class: str,
  """,
  unsafe_allow_html=True,
  )
+
+
 def render_split_card(title: str, subtitle: str, total_amount: float, paid_me: float, paid_father: float, target_me: float | None = None, target_father: float | None = None):
  total_paid = paid_me + paid_father
  remaining = max(total_amount - total_paid, 0)
@@ -424,6 +428,8 @@ def render_split_card(title: str, subtitle: str, total_amount: float, paid_me: f
  render_progress_line("Πατέρας", paid_father, total_amount, "split-father", f"{format_currency(paid_father)}")
  render_progress_line("Απομένει", remaining, total_amount, "split-remaining", f"{format_currency(remaining)}")
  st.markdown("</div>", unsafe_allow_html=True)
+
+
 def make_bar_chart(df: pd.DataFrame, x: str, y: str, title: str):
  fig = px.bar(
  df,
@@ -436,6 +442,8 @@ def make_bar_chart(df: pd.DataFrame, x: str, y: str, title: str):
  )
  fig.update_layout(showlegend=False, margin=dict(l=10, r=10, t=55, b=10), height=360)
  return fig
+
+
 def make_donut_chart(df: pd.DataFrame, names: str, values: str, title: str):
  fig = px.pie(
  df,
@@ -448,12 +456,16 @@ def make_donut_chart(df: pd.DataFrame, names: str, values: str, title: str):
  )
  fig.update_layout(margin=dict(l=10, r=10, t=55, b=10), height=360)
  return fig
+
+
 def image_to_base64(uploaded_file, max_size=(1400, 1400), quality=74) -> str:
  image = Image.open(uploaded_file).convert("RGB")
  image.thumbnail(max_size)
  buffer = io.BytesIO()
  image.save(buffer, format="JPEG", quality=quality, optimize=True)
  return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+
 def image_source_from_row(row: pd.Series):
  image_url = safe_text(row.get("Image_URL", ""))
  image_data = safe_text(row.get("Image_Data", ""))
@@ -462,6 +474,8 @@ def image_source_from_row(row: pd.Series):
  if image_data:
  return f"data:image/jpeg;base64,{image_data}"
  return None
+
+
 def calculate_fee_status(df_fees: pd.DataFrame, df_expenses: pd.DataFrame) -> pd.DataFrame:
  if df_fees.empty:
  return pd.DataFrame()
@@ -497,6 +511,8 @@ def calculate_fee_status(df_fees: pd.DataFrame, df_expenses: pd.DataFrame) -> pd
  "Σημειώσεις": safe_text(fee["Σημειώσεις"]),
  })
  return pd.DataFrame(rows)
+
+
 def calculate_non_fee_expense_split(df_expenses: pd.DataFrame) -> pd.DataFrame:
  if df_expenses.empty:
  return pd.DataFrame()
@@ -519,12 +535,16 @@ def calculate_non_fee_expense_split(df_expenses: pd.DataFrame) -> pd.DataFrame:
  "Υπόλοιπο": max(total - paid_me - paid_father, 0),
  })
  return pd.DataFrame(rows).sort_values("Σύνολο", ascending=False)
+
+
 def calculate_material_summary(df_materials: pd.DataFrame) -> pd.DataFrame:
  if df_materials.empty:
  return pd.DataFrame()
  materials = df_materials.copy()
  materials["Σύνολο"] = money_series(materials, "Σύνολο")
  return materials.groupby("Κατηγορία", as_index=False)["Σύνολο"].sum().sort_values("Σύνολο", ascending=False)
+
+
 def calculate_material_split_from_expenses(df_expenses: pd.DataFrame) -> pd.DataFrame:
  if df_expenses.empty:
  return pd.DataFrame()
@@ -547,6 +567,8 @@ def calculate_material_split_from_expenses(df_expenses: pd.DataFrame) -> pd.Data
  "Υπόλοιπο": max(total - paid_me - paid_father, 0),
  })
  return pd.DataFrame(rows).sort_values("Σύνολο", ascending=False)
+
+
 def calculate_loan_installment(principal: float, annual_rate: float, months: int) -> float:
  if months <= 0:
  return 0.0
@@ -554,6 +576,8 @@ def calculate_loan_installment(principal: float, annual_rate: float, months: int
  if monthly_rate == 0:
  return principal / months
  return principal * (monthly_rate * (1 + monthly_rate) ** months) / ((1 + monthly_rate) ** months - 1)
+
+
 def room_progress_summary(df_gal: pd.DataFrame) -> pd.DataFrame:
  if df_gal.empty:
  return pd.DataFrame(columns=["Χώρος", "Πρόοδος"])
@@ -567,6 +591,8 @@ def room_progress_summary(df_gal: pd.DataFrame) -> pd.DataFrame:
  score = min(100, after_count * 55 + progress_count * 20 + material_count * 10 + before_count * 5)
  rows.append({"Χώρος": room, "Πρόοδος": score})
  return pd.DataFrame(rows)
+
+
 def prepare_timeline_df(df_tasks: pd.DataFrame) -> pd.DataFrame:
  if df_tasks.empty:
  return pd.DataFrame()
@@ -588,6 +614,8 @@ def prepare_timeline_df(df_tasks: pd.DataFrame) -> pd.DataFrame:
  "Ανάθεση": safe_text(row.get("Ανάθεση"), ""),
  })
  return pd.DataFrame(rows)
+
+
 def render_dashboard_section_title(title: str, subtitle: str):
  st.markdown(f'<div class="dashboard-block-title">{title}</div>', unsafe_allow_html=True)
  st.markdown(f'<div class="dashboard-block-subtitle">{subtitle}</div>', unsafe_allow_html=True)
@@ -599,6 +627,8 @@ df_loans = safe_read(SHEET_LOANS, LOAN_COLUMNS)
 df_tasks = safe_read(SHEET_TASKS, TASK_COLUMNS)
 df_offers = safe_read(SHEET_OFFERS, OFFER_COLUMNS)
 df_gallery = safe_read(SHEET_GALLERY, GALLERY_COLUMNS)
+
+
 def render_dashboard(df_exp: pd.DataFrame, df_fee: pd.DataFrame, df_material: pd.DataFrame, df_loan: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.DataFrame, df_gal: pd.DataFrame):
  st.subheader("🏠 Dashboard")
  budget = st.number_input("Συνολικό Budget (€)", min_value=0.0, value=30000.0, step=1000.0)
@@ -659,6 +689,8 @@ def render_dashboard(df_exp: pd.DataFrame, df_fee: pd.DataFrame, df_material: pd
  gantt.update_layout(height=420, margin=dict(l=10, r=10, t=55, b=10))
  gantt.update_yaxes(autorange="reversed")
  st.plotly_chart(gantt, use_container_width=True)
+
+
 def render_expenses(df_exp: pd.DataFrame):
  st.subheader("💰 Έξοδα")
  with st.expander("➕ Νέο έξοδο"):
@@ -721,6 +753,8 @@ def render_expenses(df_exp: pd.DataFrame):
  st.rerun()
 # ✅ FIX Bug 1: Προστέθηκε df_material ως 1ο argument στο append_row
 # ✅ FIX Bug 2: Αφαιρέθηκε το αδέσποτο df_material, στο τέλος
+
+
 def render_materials(df_material: pd.DataFrame):
     st.subheader("📦 Υλικά")
     with st.expander("➕ Νέο υλικό"):
@@ -833,6 +867,8 @@ def render_loans(df_loan: pd.DataFrame):
                     st.success("Το δάνειο αποθηκεύτηκε.")
                     st.rerun()
     show_table(df_loan)
+
+
 def render_timeline(df_task: pd.DataFrame):
     st.subheader("🗓️ Timeline / Gantt")
     with st.expander("➕ Νέα εργασία planning"):
@@ -925,7 +961,6 @@ def render_offers(df_off: pd.DataFrame):
     show_table(df_off)
 
 
-# ✅ FIX Bug 3: Το st.caption τώρα είναι ΜΕΣΑ στο loop αντί στο τέλος του αρχείου
 def render_gallery(df_gal: pd.DataFrame):
     st.subheader("📸 Gallery")
     with st.expander("➕ Νέα εικόνα", expanded=False):
