@@ -643,129 +643,139 @@ df_gallery = safe_read(SHEET_GALLERY, GALLERY_COLUMNS)
 
 
 def render_dashboard(df_exp: pd.DataFrame, df_fee: pd.DataFrame, df_material: pd.DataFrame, df_loan: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.DataFrame, df_gal: pd.DataFrame):
- st.subheader("🏠 Dashboard")
- budget = st.number_input("Συνολικό Budget (€)", min_value=0.0, value=30000.0, step=1000.0)
- spent = money_series(df_exp, "Ποσό").sum()
- materials_total = money_series(df_material, "Σύνολο").sum()
- fee_status_df = calculate_fee_status(df_fee, df_exp)
- material_split_df = calculate_material_split_from_expenses(df_exp)
- timeline_df = prepare_timeline_df(df_task)
- top1, top2, top3, top4 = st.columns(4)
- top1.metric("Σύνολο εξόδων", format_currency(spent))
- top2.metric("Υπόλοιπο budget", format_currency(budget - spent))
- top3.metric("Σύνολο υλικών", format_currency(materials_total))
- top4.metric("Ενεργές εργασίες", int((df_task["Κατάσταση"] == "Doing").sum()) if not df_task.empty else 0)
- render_dashboard_section_title("Κάρτα αμοιβών συνεργείων", "Ακριβώς όπως το σκίτσο σου: μία κάρτα ανά κατηγορία με σύνολο, Εγώ, Πατέρας.")
- if fee_status_df.empty:
-     st.info("Δεν υπάρχουν ακόμη αμοιβές.")
- else:
-     fee_cols = st.columns(2)
-     for idx, (_, row) in enumerate(fee_status_df.iterrows()):
-         with fee_cols[idx % 2]:
-             render_split_card(
-             f"Κάρτα {safe_text(row['Κατηγορία'])}",
-             safe_text(row["Περιγραφή"]),
-             float(row["Συνολικό Ποσό"]),
-             float(row["Πλήρωσα Εγώ"]),
-             float(row["Πλήρωσε Πατέρας"]),
-             float(row["Στόχος Εγώ"]),
-             float(row["Στόχος Πατέρας"]),
-             )    
-             render_dashboard_section_title("Κάρτα υλικών", "Μία κάρτα ανά κατηγορία για υλικά και λοιπά έξοδα.")
- if material_split_df.empty:
-     st.info("Δεν υπάρχουν ακόμη καταχωρημένα υλικά στα έξοδα.")
- else:
-     material_cols = st.columns(2)
-     for idx, (_, row) in enumerate(material_split_df.iterrows()):
-         with material_cols[idx % 2]:
-             render_split_card(
-             f"Κάρτα {safe_text(row['Κατηγορία'])}",
-             "Υλικά κατηγορίας",
-             float(row["Σύνολο"]),
-             float(row["Εγώ"]),
-             float(row["Πατέρας"]),
-             )
-             render_dashboard_section_title("Timeline / Gantt", "Το project planning σε χρονογραμμή για να βλέπεις τι ξεκινά και τι λήγει.")
- if timeline_df.empty:
-     st.info("Δεν υπάρχουν ακόμη εργασίες με timeline.")
- else:
-     gantt = px.timeline(
-     timeline_df,
-     x_start="Start",
-     x_end="End",
-     y="Εργασία",
-     color="Κατάσταση",
-     hover_data=["Χώρος", "Ανάθεση"],
-     color_discrete_map={"To Do": "#c9a96b", "Doing": "#3f7d6b", "Done": "#915f35"},
-     title="Project Timeline",
-     )
-     gantt.update_layout(height=420, margin=dict(l=10, r=10, t=55, b=10))
-     gantt.update_yaxes(autorange="reversed")
-     st.plotly_chart(gantt, use_container_width=True)
+    st.subheader("🏠 Dashboard")
+    budget = st.number_input("Συνολικό Budget (€)", min_value=0.0, value=30000.0, step=1000.0)
+    
+    spent = money_series(df_exp, "Ποσό").sum()
+    materials_total = money_series(df_material, "Σύνολο").sum()
+    fee_status_df = calculate_fee_status(df_fee, df_exp)
+    material_split_df = calculate_material_split_from_expenses(df_exp)
+    timeline_df = prepare_timeline_df(df_task)
+
+    # Metrics
+    top1, top2, top3, top4 = st.columns(4)
+    top1.metric("Σύνολο εξόδων", format_currency(spent))
+    top2.metric("Υπόλοιπο budget", format_currency(budget - spent))
+    top3.metric("Σύνολο υλικών", format_currency(materials_total))
+    active_tasks = int((df_task["Κατάσταση"] == "Doing").sum()) if not df_task.empty else 0
+    top4.metric("Ενεργές εργασίες", active_tasks)
+
+    # --- Section: Αμοιβές Συνεργείων ---
+    render_dashboard_section_title("Кάρτα αμοιβών συνεργείων", "Ακριβώς όπως το σκίτσο σου: μία κάρτα ανά κατηγορία.")
+    if fee_status_df.empty:
+        st.info("Δεν υπάρχουν ακόμη αμοιβές.")
+    else:
+        fee_cols = st.columns(2)
+        for idx, (_, row) in enumerate(fee_status_df.iterrows()):
+            with fee_cols[idx % 2]:
+                render_split_card(
+                    f"Κάρτα {safe_text(row['Κατηγορία'])}",
+                    safe_text(row.get("Περιγραφή", "Αμοιβή εργασίας")),
+                    float(row.get("Συνολικό Ποσό", 0)),
+                    float(row.get("Πλήρωσα Εγώ", 0)),
+                    float(row.get("Πλήρωσε Πατέρας", 0)),
+                    float(row.get("Στόχος Εγώ", 0)),
+                    float(row.get("Στόχος Πατέρας", 0)),
+                )
+
+    # --- Section: Υλικά ---
+    render_dashboard_section_title("Κάρτα υλικών", "Μία κάρτα ανά κατηγορία για υλικά και λοιπά έξοδα.")
+    if material_split_df.empty:
+        st.info("Δεν υπάρχουν ακόμη καταχωρημένα υλικά στα έξοδα.")
+    else:
+        material_cols = st.columns(2)
+        for idx, (_, row) in enumerate(material_split_df.iterrows()):
+            with material_cols[idx % 2]:
+                render_split_card(
+                    f"Κάρτα {safe_text(row['Κατηγορία'])}",
+                    "Υλικά κατηγορίας",
+                    float(row.get("Σύνολο", 0)),
+                    float(row.get("Εγώ", 0)),
+                    float(row.get("Πατέρας", 0)),
+                )
+
+    # --- Section: Timeline ---
+    render_dashboard_section_title("Timeline / Gantt", "Το project planning σε χρονογραμμή.")
+    if timeline_df.empty:
+        st.info("Δεν υπάρχουν ακόμη εργασίες με timeline.")
+    else:
+        gantt = px.timeline(
+            timeline_df,
+            x_start="Start",
+            x_end="Finish", # Βεβαιώσου ότι η στήλη λέγεται Finish ή End
+            y="Task",
+            color="Resource",
+            color_discrete_map={"To Do": "#c9a96b", "Doing": "#3f7d6b", "Done": "#915f35"},
+            title="Project Timeline"
+        )
+        gantt.update_layout(height=400, margin=dict(l=10, r=10, t=50, b=10))
+        gantt.update_yaxes(autorange="reversed")
+        st.plotly_chart(gantt, use_container_width=True)
 
 
 def render_expenses(df_exp: pd.DataFrame):
- st.subheader("💰 Έξοδα")
- with st.expander("➕ Νέο έξοδο"):
-     with st.form("expense_add_form", clear_on_submit=True):
-         c1, c2, c3 = st.columns(3)
-         with c1:
-             expense_date = st.date_input("Ημερομηνία")
-             category = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES)
-             with c2:
-                 expense_type = st.selectbox("Είδος", EXPENSE_TYPES)
-                 payer = st.selectbox("Πληρωτής", PAYERS)
-                 with c3:
-                     amount = st.number_input("Ποσό (€)", min_value=0.0, step=10.0)
-                     notes = st.text_input("Σημειώσεις")
- if st.form_submit_button("Αποθήκευση"):
-     updated_df = append_row(
-     df_exp,
-     {
-     "Ημερομηνία": str(expense_date),
-     "Κατηγορία": category,
-     "Είδος": expense_type,
-     "Ποσό": amount,
-     "Πληρωτής": payer,
-     "Σημειώσεις": notes.strip(),
-     },
-     EXPENSE_COLUMNS,
-     )
- if safe_write(SHEET_EXPENSES, updated_df):
-     st.success("Το έξοδο αποθηκεύτηκε.")
-     st.rerun()
- if df_exp.empty:
-     st.info("Δεν υπάρχουν έξοδα.")
-     return
-     temp = df_exp.copy()
-     temp["Ποσό"] = money_series(temp, "Ποσό")
-     st.markdown("### Ομαδοποιημένες καταχωρήσεις")
-     group_view = temp.groupby(["Κατηγορία", "Είδος", "Πληρωτής"], as_index=False)["Ποσό"].sum().sort_values(["Κατηγορία", "Είδος", "Πληρωτής"])
-     st.dataframe(group_view, use_container_width=True)
-     tabs = st.tabs(["Αναλυτικά", "Ομαδοποιημένα ανά κατηγορία", "Διαγραφή"])
- with tabs[0]:
-     show_table(temp)
- with tabs[1]:
-     grouped_category = temp.groupby(["Κατηγορία", "Είδος"], as_index=False)["Ποσό"].sum().sort_values("Ποσό", ascending=False)
-     st.dataframe(grouped_category, use_container_width=True)
-     st.plotly_chart(make_bar_chart(grouped_category, "Κατηγορία", "Ποσό", "Έξοδα ανά κατηγορία"), use_container_width=True)
- with tabs[2]:
-     labels = {}
-     for _, row in temp.iterrows():
-         row_id = safe_text(row["_id"])
-         labels[row_id] = f"{safe_text(row['Ημερομηνία'])} | {safe_text(row['Κατηγορία'])} | {safe_text(row['Είδος'])} | {format_currency(row['Ποσό'])} | {safe_text(row['Πληρωτής'])}"
-         selected_id = st.selectbox(
-         "Επιλογή εξόδου για διαγραφή",
-         options=list(labels.keys()),
-         format_func=lambda rid: labels.get(rid, "Άγνωστη εγγραφή"),
-         )
- if st.button("🗑️ Διαγραφή εξόδου"):
-     updated_df = delete_row_by_id(df_exp, selected_id)
- if safe_write(SHEET_EXPENSES, updated_df):
-     st.success("Η καταχώρηση εξόδων διαγράφηκε.")
-     st.rerun()
-# ✅ FIX Bug 1: Προστέθηκε df_material ως 1ο argument στο append_row
-# ✅ FIX Bug 2: Αφαιρέθηκε το αδέσποτο df_material, στο τέλος
+    st.subheader("💰 Έξοδα")
+    
+    # Φόρμα Προσθήκης
+    with st.expander("➕ Νέο έξοδο", expanded=False):
+        with st.form("expense_add_form", clear_on_submit=True):
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                expense_date = st.date_input("Ημερομηνία")
+                category = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES)
+            with c2:
+                expense_type = st.selectbox("Είδος", EXPENSE_TYPES)
+                payer = st.selectbox("Πληρωτής", PAYERS)
+            with c3:
+                amount = st.number_input("Ποσό (€)", min_value=0.0, step=10.0)
+                notes = st.text_input("Σημειώσεις")
+            
+            if st.form_submit_button("Αποθήκευση"):
+                new_data = {
+                    "Ημερομηνία": str(expense_date),
+                    "Κατηγορία": category,
+                    "Είδος": expense_type,
+                    "Ποσό": amount,
+                    "Πληρωτής": payer,
+                    "Σημειώσεις": notes.strip(),
+                }
+                updated_df = append_row(df_exp, new_data, EXPENSE_COLUMNS)
+                if safe_write(SHEET_EXPENSES, updated_df):
+                    st.success("Το έξοδο αποθηκεύτηκε.")
+                    st.rerun()
+
+    if df_exp.empty:
+        st.info("Δεν υπάρχουν έξοδα.")
+        return
+
+    # Προετοιμασία δεδομένων για εμφάνιση
+    temp = df_exp.copy()
+    temp["Ποσό"] = money_series(temp, "Ποσό")
+
+    st.markdown("### Στατιστική Εικόνα")
+    tabs = st.tabs(["📊 Ομαδοποιημένα", "📋 Αναλυτικά", "🗑️ Διαγραφή"])
+    
+    with tabs[0]:
+        group_view = temp.groupby(["Κατηγορία", "Είδος"], as_index=False)["Ποσό"].sum()
+        st.dataframe(group_view, use_container_width=True)
+        st.plotly_chart(make_bar_chart(group_view, "Κατηγορία", "Ποσό", "Έξοδα ανά κατηγορία"), use_container_width=True)
+
+    with tabs[1]:
+        show_table(temp)
+
+    with tabs[2]:
+        labels = {}
+        for _, row in temp.iterrows():
+            rid = safe_text(row["_id"])
+            labels[rid] = f"{row['Ημερομηνία']} | {row['Κατηγορία']} | {format_currency(row['Ποσό'])}"
+        
+        selected_id = st.selectbox("Επιλογή για διαγραφή", options=list(labels.keys()), format_func=lambda x: labels[x])
+        
+        if st.button("🗑️ Οριστική Διαγραφή"):
+            updated_df = delete_row_by_id(df_exp, selected_id)
+            if safe_write(SHEET_EXPENSES, updated_df):
+                st.success("Η καταχώρηση διαγράφηκε.")
+                st.rerun()
 
 
 def render_materials(df_material: pd.DataFrame):
