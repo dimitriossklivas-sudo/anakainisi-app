@@ -515,26 +515,26 @@ def calculate_fee_status(df_fees: pd.DataFrame, df_expenses: pd.DataFrame) -> pd
 
 def calculate_non_fee_expense_split(df_expenses: pd.DataFrame) -> pd.DataFrame:
  if df_expenses.empty:
- return pd.DataFrame()
- exp = df_expenses.copy()
- exp["Ποσό"] = money_series(exp, "Ποσό")
- exp = exp[exp["Είδος"] != "Αμοιβή"].copy()
+     return pd.DataFrame()
+     exp = df_expenses.copy()
+     exp["Ποσό"] = money_series(exp, "Ποσό")
+     exp = exp[exp["Είδος"] != "Αμοιβή"].copy()
  if exp.empty:
- return pd.DataFrame()
- rows = []
- for category in sorted(exp["Κατηγορία"].dropna().astype(str).unique()):
- subset = exp[exp["Κατηγορία"] == category]
- total = subset["Ποσό"].sum()
- paid_me = subset.loc[subset["Πληρωτής"] == "Εγώ", "Ποσό"].sum()
- paid_father = subset.loc[subset["Πληρωτής"] == "Πατέρας", "Ποσό"].sum()
- rows.append({
- "Κατηγορία": category,
- "Σύνολο": total,
- "Εγώ": paid_me,
- "Πατέρας": paid_father,
- "Υπόλοιπο": max(total - paid_me - paid_father, 0),
- })
- return pd.DataFrame(rows).sort_values("Σύνολο", ascending=False)
+     return pd.DataFrame()
+     rows = []
+     for category in sorted(exp["Κατηγορία"].dropna().astype(str).unique()):
+     subset = exp[exp["Κατηγορία"] == category]
+     total = subset["Ποσό"].sum()
+     paid_me = subset.loc[subset["Πληρωτής"] == "Εγώ", "Ποσό"].sum()
+     paid_father = subset.loc[subset["Πληρωτής"] == "Πατέρας", "Ποσό"].sum()
+     rows.append({
+     "Κατηγορία": category,
+     "Σύνολο": total,
+     "Εγώ": paid_me,
+     "Πατέρας": paid_father,
+     "Υπόλοιπο": max(total - paid_me - paid_father, 0),
+     })
+     return pd.DataFrame(rows).sort_values("Σύνολο", ascending=False)
 
 
 def calculate_material_summary(df_materials: pd.DataFrame) -> pd.DataFrame:
