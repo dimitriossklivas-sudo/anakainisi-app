@@ -545,6 +545,7 @@ def render_loans(df):
 
 def render_timeline_page(df):
     st.subheader("🗓️ Timeline")
+    current_df = st.session_state.get("tasks_local_df", df)
     with st.expander("➕ Νέα εργασία"):
         with st.form("task_form"):
             col1, col2 = st.columns(2)
@@ -556,32 +557,38 @@ def render_timeline_page(df):
                 start = st.date_input("Έναρξη")
                 end = st.date_input("Λήξη")
                 assignee = st.text_input("Ανάθεση")
-            if st.form_submit_button("Αποθήκευση") and name:
-                if end < start:
+            if st.form_submit_button("Αποθήκευση"):
+                clean_name = name.strip()
+                if not clean_name:
+                    st.warning("Συμπλήρωσε όνομα εργασίας.")
+                elif end < start:
                     st.error("Η ημερομηνία λήξης δεν μπορεί να είναι πριν την έναρξη.")
                 else:
                     new = {
-                        "Εργασία": name,
+                        "Εργασία": clean_name,
                         "Χώρος": room,
                         "Κατάσταση": status,
                         "Ημερομηνία_Έναρξης": str(start),
                         "Ημερομηνία_Λήξης": str(end),
                         "Κόστος": 0,
                         "Προτεραιότητα": "Μεσαία",
-                        "Ανάθεση": assignee,
+                        "Ανάθεση": assignee.strip(),
                         "Σημειώσεις": "",
                     }
-                    updated = append_row(df, new, TASK_COLUMNS)
-                    if safe_write(SHEET_TASKS, updated):
-                        st.success("Αποθηκεύτηκε")
+                    updated = append_row(current_df, new, TASK_COLUMNS)
+                    with st.spinner("Αποθήκευση εργασίας..."):
+                        ok = safe_write(SHEET_TASKS, updated)
+                    if ok:
+                        st.session_state["tasks_local_df"] = updated
+                        st.toast("Η εργασία αποθηκεύτηκε", icon="✅")
                         st.rerun()
 
-    timeline = prepare_timeline(df)
+    timeline = prepare_timeline(current_df)
     if not timeline.empty:
         fig = px.timeline(timeline, x_start="Start", x_end="End", y="Task", color="Status")
         fig.update_layout(height=450)
         st.plotly_chart(fig, use_container_width=True)
-    show_table(df)
+    show_table(current_df)
 
 
 def render_tasks(df):
