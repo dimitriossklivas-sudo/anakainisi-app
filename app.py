@@ -1013,7 +1013,7 @@ def render_gallery(df_gal: pd.DataFrame):
             if src:
                 st.image(src, use_container_width=True)
             st.caption(f"{safe_text(row['Χώρος'])} | {safe_text(row['Τίτλος'])}")
-    def render_analytics(df_exp: pd.DataFrame, df_fee: pd.DataFrame, df_material: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.DataFrame):
+def render_analytics(df_exp: pd.DataFrame, df_fee: pd.DataFrame, df_material: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.DataFrame):
     st.subheader("📊 Αναλύσεις")
     left, right = st.columns(2)
     with left:
