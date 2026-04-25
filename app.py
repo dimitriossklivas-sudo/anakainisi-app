@@ -484,19 +484,19 @@ def calculate_fee_status(df_fees: pd.DataFrame, df_expenses: pd.DataFrame) -> pd
      exp["Ποσό"] = money_series(exp, "Ποσό")
      rows = []
      for _, fee in df_fees.iterrows():
-     category = safe_text(fee["Κατηγορία"])
-     description = safe_text(fee["Περιγραφή"])
-     total_amount = pd.to_numeric(pd.Series([fee["Συνολικό_Ποσό"]]), errors="coerce").fillna(0).iloc[0]
-     share_me = pd.to_numeric(pd.Series([fee["Συμμετοχή_Εγώ"]]), errors="coerce").fillna(0).iloc[0]
-     share_father = pd.to_numeric(pd.Series([fee["Συμμετοχή_Πατέρας"]]), errors="coerce").fillna(0).iloc[0]
-     relevant = exp[
-     (exp["Κατηγορία"] == category) &
-     (exp["Είδος"] == "Αμοιβή")
-     ].copy() if not exp.empty else pd.DataFrame()
-     paid_me = relevant.loc[relevant["Πληρωτής"] == "Εγώ", "Ποσό"].sum() if not relevant.empty else 0
-     paid_father = relevant.loc[relevant["Πληρωτής"] == "Πατέρας", "Ποσό"].sum() if not relevant.empty else 0
-     total_paid = paid_me + paid_father
-     rows.append({
+         category = safe_text(fee["Κατηγορία"])
+         description = safe_text(fee["Περιγραφή"])
+         total_amount = pd.to_numeric(pd.Series([fee["Συνολικό_Ποσό"]]), errors="coerce").fillna(0).iloc[0]
+         share_me = pd.to_numeric(pd.Series([fee["Συμμετοχή_Εγώ"]]), errors="coerce").fillna(0).iloc[0]
+         share_father = pd.to_numeric(pd.Series([fee["Συμμετοχή_Πατέρας"]]), errors="coerce").fillna(0).iloc[0]
+         relevant = exp[
+         (exp["Κατηγορία"] == category) &
+         (exp["Είδος"] == "Αμοιβή")
+         ].copy() if not exp.empty else pd.DataFrame()
+         paid_me = relevant.loc[relevant["Πληρωτής"] == "Εγώ", "Ποσό"].sum() if not relevant.empty else 0
+         paid_father = relevant.loc[relevant["Πληρωτής"] == "Πατέρας", "Ποσό"].sum() if not relevant.empty else 0
+         total_paid = paid_me + paid_father
+         rows.append({
      "_id": safe_text(fee["_id"]),
      "Κατηγορία": category,
      "Περιγραφή": description,
