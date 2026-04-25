@@ -530,6 +530,7 @@ def render_contacts(df):
 
 def render_loans(df):
     st.subheader("🏦 Δάνειο")
+    current_df = st.session_state.get("loans_local_df", df)
     with st.expander("➕ Νέο δάνειο"):
         with st.form("loan_form"):
             col1, col2 = st.columns(2)
@@ -539,27 +540,40 @@ def render_loans(df):
             with col2:
                 rate = st.number_input("Επιτόκιο (%)", min_value=0.0, step=0.1)
                 months = st.number_input("Μήνες", min_value=1, step=1)
-            if st.form_submit_button("Αποθήκευση") and desc:
-                monthly_rate = rate / 100 / 12
-                if monthly_rate == 0:
-                    installment = principal / months if months > 0 else 0
+                start_date = st.date_input("Ημερομηνία έναρξης", value=date.today())
+            if st.form_submit_button("Αποθήκευση"):
+                clean_desc = desc.strip()
+                months_int = int(months)
+                principal_val = to_money(principal)
+                rate_val = to_money(rate)
+                if not clean_desc:
+                    st.warning("Συμπλήρωσε περιγραφή δανείου.")
+                elif months_int <= 0:
+                    st.warning("Οι μήνες πρέπει να είναι μεγαλύτεροι από 0.")
                 else:
-                    installment = principal * (monthly_rate * (1 + monthly_rate) ** months) / ((1 + monthly_rate) ** months - 1)
-                new = {
-                    "Περιγραφή": desc,
-                    "Κεφάλαιο": principal,
-                    "Επιτόκιο": rate,
-                    "Μήνες": months,
-                    "Μηνιαία_Δόση": installment,
-                    "Έναρξη": str(date.today()),
-                    "Κατάσταση": "Ενεργό",
-                    "Σημειώσεις": "",
-                }
-                updated = append_row(df, new, LOAN_COLUMNS)
-                if safe_write(SHEET_LOANS, updated):
-                    st.success("Αποθηκεύτηκε")
-                    st.rerun()
-    show_table(df)
+                    monthly_rate = rate_val / 100 / 12
+                    if monthly_rate == 0:
+                        installment = principal_val / months_int
+                    else:
+                        installment = principal_val * (monthly_rate * (1 + monthly_rate) ** months_int) / ((1 + monthly_rate) ** months_int - 1)
+                    new = {
+                        "Περιγραφή": clean_desc,
+                        "Κεφάλαιο": principal_val,
+                        "Επιτόκιο": rate_val,
+                        "Μήνες": months_int,
+                        "Μηνιαία_Δόση": installment,
+                        "Έναρξη": str(start_date),
+                        "Κατάσταση": "Ενεργό",
+                        "Σημειώσεις": "",
+                    }
+                    updated = append_row(current_df, new, LOAN_COLUMNS)
+                    with st.spinner("Αποθήκευση δανείου..."):
+                        ok = safe_write(SHEET_LOANS, updated)
+                    if ok:
+                        st.session_state["loans_local_df"] = updated
+                        st.toast("Η καταχώρηση δανείου αποθηκεύτηκε", icon="✅")
+                        st.rerun()
+    show_table(current_df)
 
 
 def render_timeline_page(df):
