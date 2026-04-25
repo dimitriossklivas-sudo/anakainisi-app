@@ -625,9 +625,9 @@ def prepare_timeline_df(df_tasks: pd.DataFrame) -> pd.DataFrame:
             "Resource": safe_text(row.get("Κατάσταση", "Εκκρεμεί"))
         })
         
-    # 5. Επιστροφή του τελικού DataFrame για το Timeline
-    return pd.DataFrame(rows)
-         if start and end and end < start:
+        # 5. Επιστροφή του τελικού DataFrame για το Timeline
+        return pd.DataFrame(rows)
+        if start and end and end < start:
              end = start
              rows.append({
              "Εργασία": task_name,
