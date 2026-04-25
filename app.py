@@ -477,15 +477,32 @@ def image_source_from_row(row: pd.Series):
 
 
 def calculate_fee_status(df_fee: pd.DataFrame, df_exp: pd.DataFrame):
-    # Έλεγχος αν το DataFrame των εξόδων είναι άδειο
+    # Διασφάλιση ότι έχουμε DataFrame για να αποφύγουμε AttributeError
     if df_exp is None or df_exp.empty:
         return pd.DataFrame()
     
-    # Φιλτράρουμε μόνο τα έξοδα που αφορούν αμοιβές
-    fee_exps = df_exp[df_exp["Είδος"] == "Αμοιβή"]
-    
-    # ... υπόλοιπος κώδικας υπολογισμού ...
-    # Βεβαιώσου ότι χρησιμοποιείς το df_exp και όχι το exp
+    results = []
+    # Χρησιμοποιούμε το σωστό όνομα μεταβλητής: df_exp
+    for _, fee in df_fee.iterrows():
+        cat = fee["Κατηγορία"]
+        target = float(fee.get("Ποσό", 0))
+        
+        # Φιλτράρουμε τα έξοδα για τη συγκεκριμένη αμοιβή
+        relevant = df_exp[(df_exp["Κατηγορία"] == cat) & (df_exp["Είδος"] == "Αμοιβή")]
+        
+        paid_me = relevant[relevant["Πληρωτής"] == "Εγώ"]["Ποσό"].sum()
+        paid_fat = relevant[relevant["Πληρωτής"] == "Πατέρας"]["Ποσό"].sum()
+        
+        results.append({
+            "Κατηγορία": cat,
+            "Συνολικό Ποσό": target,
+            "Πλήρωσα Εγώ": paid_me,
+            "Πλήρωσε Πατέρας": paid_fat,
+            "Στόχος Εγώ": target / 2,
+            "Στόχος Πατέρας": target / 2,
+            "Περιγραφή": "Αμοιβή εργασίας"
+        })
+    return pd.DataFrame(results)
 
 
 def calculate_non_fee_expense_split(df_expenses: pd.DataFrame) -> pd.DataFrame:
@@ -521,14 +538,22 @@ def calculate_material_summary(df_materials: pd.DataFrame) -> pd.DataFrame:
 
 
 def calculate_material_split_from_expenses(df_exp: pd.DataFrame):
-    # Διόρθωση: Χρησιμοποιούμε το όνομα της μεταβλητής που περνάμε στη συνάρτηση
+    # Διασφάλιση ότι επιστρέφουμε DataFrame και όχι None
     if df_exp is None or df_exp.empty:
         return pd.DataFrame()
+        
+    # Φιλτράρουμε μόνο τα υλικά
+    mats = df_exp[df_exp["Είδος"] == "Υλικά"]
+    if mats.empty:
+        return pd.DataFrame()
+        
+    summary = mats.groupby("Κατηγορία").agg(
+        Σύνολο=("Ποσό", "sum"),
+        Εγώ=("Ποσό", lambda x: mats.loc[x.index, "Ποσό"][mats["Πληρωτής"] == "Εγώ"].sum()),
+        Πατέρας=("Ποσό", lambda x: mats.loc[x.index, "Ποσό"][mats["Πληρωτής"] == "Πατέρας"].sum())
+    ).reset_index()
     
-    # Φιλτράρουμε τα έξοδα που αφορούν Υλικά
-    material_exps = df_exp[df_exp["Είδος"] == "Υλικά"]
-    
-    # ... υπόλοιπος κώδικας ...
+    return summary
 
 
 def calculate_loan_installment(principal: float, annual_rate: float, months: int) -> float:
