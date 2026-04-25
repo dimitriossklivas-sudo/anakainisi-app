@@ -476,30 +476,16 @@ def image_source_from_row(row: pd.Series):
      return None
 
 
-def calculate_fee_status(df_fee, df_exp):
-    results = []
-    # Ορισμός του exp ως άδειο DataFrame για αποφυγή του UnboundLocalError
-    if df_exp is None:
-        df_exp = pd.DataFrame(columns=["Κατηγορία", "Ποσό", "Πληρωτής", "Είδος"])
-        
-    for _, fee in df_fee.iterrows():
-        category = fee["Κατηγορία"]
-        target_total = float(fee.get("Ποσό", 0))
-        
-        # Φιλτράρισμα εξόδων που αφορούν "Αμοιβή" για τη συγκεκριμένη κατηγορία
-        relevant_exp = df_exp[(df_exp["Κατηγορία"] == category) & (df_exp["Είδος"] == "Αμοιβή")]
-        
-        paid_me = relevant_exp[relevant_exp["Πληρωτής"] == "Εγώ"]["Ποσό"].sum()
-        paid_father = relevant_exp[relevant_exp["Πληρωτής"] == "Πατέρας"]["Ποσό"].sum()
-        
-        results.append({
-            "Κατηγορία": category,
-            "Στόχος": target_total,
-            "Πληρωμένο_Εγώ": paid_me,
-            "Πληρωμένο_Πατέρας": paid_father,
-            "Σύνολο_Πληρωμένο": paid_me + paid_father
-        })
-    return pd.DataFrame(results)
+def calculate_fee_status(df_fee: pd.DataFrame, df_exp: pd.DataFrame):
+    # Έλεγχος αν το DataFrame των εξόδων είναι άδειο
+    if df_exp is None or df_exp.empty:
+        return pd.DataFrame()
+    
+    # Φιλτράρουμε μόνο τα έξοδα που αφορούν αμοιβές
+    fee_exps = df_exp[df_exp["Είδος"] == "Αμοιβή"]
+    
+    # ... υπόλοιπος κώδικας υπολογισμού ...
+    # Βεβαιώσου ότι χρησιμοποιείς το df_exp και όχι το exp
 
 
 def calculate_non_fee_expense_split(df_expenses: pd.DataFrame) -> pd.DataFrame:
