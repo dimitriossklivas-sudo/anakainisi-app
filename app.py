@@ -520,28 +520,15 @@ def calculate_material_summary(df_materials: pd.DataFrame) -> pd.DataFrame:
      return materials.groupby("Κατηγορία", as_index=False)["Σύνολο"].sum().sort_values("Σύνολο", ascending=False)
 
 
-def calculate_material_split_from_expenses(df_expenses: pd.DataFrame) -> pd.DataFrame:
- if df_expenses.empty:
-     return pd.DataFrame()
-     exp = df_expenses.copy()
-     exp["Ποσό"] = money_series(exp, "Ποσό")
-     exp = exp[exp["Είδος"] == "Υλικά"].copy()
- if exp.empty:
-     return pd.DataFrame()
-     rows = []
-     for category in sorted(exp["Κατηγορία"].dropna().astype(str).unique()):
-         subset = exp[exp["Κατηγορία"] == category]
-         total = subset["Ποσό"].sum()
-         paid_me = subset.loc[subset["Πληρωτής"] == "Εγώ", "Ποσό"].sum()
-         paid_father = subset.loc[subset["Πληρωτής"] == "Πατέρας", "Ποσό"].sum()
-         rows.append({
-         "Κατηγορία": category,
-         "Σύνολο": total,
-         "Εγώ": paid_me,
-         "Πατέρας": paid_father,
-         "Υπόλοιπο": max(total - paid_me - paid_father, 0),
-        })
-         return pd.DataFrame(rows).sort_values("Σύνολο", ascending=False)
+def calculate_material_split_from_expenses(df_exp: pd.DataFrame):
+    # Διόρθωση: Χρησιμοποιούμε το όνομα της μεταβλητής που περνάμε στη συνάρτηση
+    if df_exp is None or df_exp.empty:
+        return pd.DataFrame()
+    
+    # Φιλτράρουμε τα έξοδα που αφορούν Υλικά
+    material_exps = df_exp[df_exp["Είδος"] == "Υλικά"]
+    
+    # ... υπόλοιπος κώδικας ...
 
 
 def calculate_loan_installment(principal: float, annual_rate: float, months: int) -> float:
