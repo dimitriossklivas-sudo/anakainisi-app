@@ -1,5 +1,6 @@
 import base64
 import io
+import time
 import uuid
 from datetime import date, timedelta
 
@@ -110,12 +111,24 @@ def safe_read(sheet_name, columns, ttl_seconds=60):
 
 
 def safe_write(sheet_name, df):
-    try:
-        conn.update(worksheet=sheet_name, data=df)
-        return True
-    except Exception as exc:
-        st.error(f"Σφάλμα εγγραφής στο '{sheet_name}': {exc}")
-        return False
+    retries = 3
+    for attempt in range(retries):
+        try:
+            conn.update(worksheet=sheet_name, data=df)
+            # Ensure next rerun reads fresh data after a write.
+            st.cache_data.clear()
+            return True
+        except Exception as exc:
+            message = str(exc)
+            is_rate_limited = "429" in message or "RATE_LIMIT_EXCEEDED" in message or "RESOURCE_EXHAUSTED" in message
+            if is_rate_limited and attempt < retries - 1:
+                wait_seconds = 1.5 * (attempt + 1)
+                st.warning(f"Προσωρινός περιορισμός Google Sheets. Νέα προσπάθεια σε {wait_seconds:.1f}s...")
+                time.sleep(wait_seconds)
+                continue
+            st.error(f"Σφάλμα εγγραφής στο '{sheet_name}': {exc}")
+            return False
+    return False
 
 
 def append_row(df, row_data, columns):
