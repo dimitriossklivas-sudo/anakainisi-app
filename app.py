@@ -649,46 +649,46 @@ def render_dashboard(df_exp: pd.DataFrame, df_fee: pd.DataFrame, df_material: pd
      fee_cols = st.columns(2)
      for idx, (_, row) in enumerate(fee_status_df.iterrows()):
          with fee_cols[idx % 2]:
-         render_split_card(
-         f"Κάρτα {safe_text(row['Κατηγορία'])}",
-         safe_text(row["Περιγραφή"]),
-         float(row["Συνολικό Ποσό"]),
-         float(row["Πλήρωσα Εγώ"]),
-         float(row["Πλήρωσε Πατέρας"]),
-         float(row["Στόχος Εγώ"]),
-         float(row["Στόχος Πατέρας"]),
-         )    
-         render_dashboard_section_title("Κάρτα υλικών", "Μία κάρτα ανά κατηγορία για υλικά και λοιπά έξοδα.")
+             render_split_card(
+             f"Κάρτα {safe_text(row['Κατηγορία'])}",
+             safe_text(row["Περιγραφή"]),
+             float(row["Συνολικό Ποσό"]),
+             float(row["Πλήρωσα Εγώ"]),
+             float(row["Πλήρωσε Πατέρας"]),
+             float(row["Στόχος Εγώ"]),
+             float(row["Στόχος Πατέρας"]),
+             )    
+             render_dashboard_section_title("Κάρτα υλικών", "Μία κάρτα ανά κατηγορία για υλικά και λοιπά έξοδα.")
  if material_split_df.empty:
      st.info("Δεν υπάρχουν ακόμη καταχωρημένα υλικά στα έξοδα.")
-     else:
+ else:
      material_cols = st.columns(2)
      for idx, (_, row) in enumerate(material_split_df.iterrows()):
          with material_cols[idx % 2]:
-         render_split_card(
-         f"Κάρτα {safe_text(row['Κατηγορία'])}",
-         "Υλικά κατηγορίας",
-         float(row["Σύνολο"]),
-         float(row["Εγώ"]),
-         float(row["Πατέρας"]),
-         )
-         render_dashboard_section_title("Timeline / Gantt", "Το project planning σε χρονογραμμή για να βλέπεις τι ξεκινά και τι λήγει.")
+             render_split_card(
+             f"Κάρτα {safe_text(row['Κατηγορία'])}",
+             "Υλικά κατηγορίας",
+             float(row["Σύνολο"]),
+             float(row["Εγώ"]),
+             float(row["Πατέρας"]),
+             )
+             render_dashboard_section_title("Timeline / Gantt", "Το project planning σε χρονογραμμή για να βλέπεις τι ξεκινά και τι λήγει.")
  if timeline_df.empty:
      st.info("Δεν υπάρχουν ακόμη εργασίες με timeline.")
  else:
- gantt = px.timeline(
- timeline_df,
- x_start="Start",
- x_end="End",
- y="Εργασία",
- color="Κατάσταση",
- hover_data=["Χώρος", "Ανάθεση"],
- color_discrete_map={"To Do": "#c9a96b", "Doing": "#3f7d6b", "Done": "#915f35"},
- title="Project Timeline",
- )
- gantt.update_layout(height=420, margin=dict(l=10, r=10, t=55, b=10))
- gantt.update_yaxes(autorange="reversed")
- st.plotly_chart(gantt, use_container_width=True)
+     gantt = px.timeline(
+     timeline_df,
+     x_start="Start",
+     x_end="End",
+     y="Εργασία",
+     color="Κατάσταση",
+     hover_data=["Χώρος", "Ανάθεση"],
+     color_discrete_map={"To Do": "#c9a96b", "Doing": "#3f7d6b", "Done": "#915f35"},
+     title="Project Timeline",
+     )
+     gantt.update_layout(height=420, margin=dict(l=10, r=10, t=55, b=10))
+     gantt.update_yaxes(autorange="reversed")
+     st.plotly_chart(gantt, use_container_width=True)
 
 
 def render_expenses(df_exp: pd.DataFrame):
