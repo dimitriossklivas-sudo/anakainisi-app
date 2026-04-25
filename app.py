@@ -645,7 +645,7 @@ def render_dashboard(df_exp: pd.DataFrame, df_fee: pd.DataFrame, df_material: pd
  render_dashboard_section_title("Κάρτα αμοιβών συνεργείων", "Ακριβώς όπως το σκίτσο σου: μία κάρτα ανά κατηγορία με σύνολο, Εγώ, Πατέρας.")
  if fee_status_df.empty:
      st.info("Δεν υπάρχουν ακόμη αμοιβές.")
-     else:
+ else:
      fee_cols = st.columns(2)
      for idx, (_, row) in enumerate(fee_status_df.iterrows()):
          with fee_cols[idx % 2]:
