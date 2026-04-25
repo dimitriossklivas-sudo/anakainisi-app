@@ -470,10 +470,10 @@ def image_source_from_row(row: pd.Series):
  image_url = safe_text(row.get("Image_URL", ""))
  image_data = safe_text(row.get("Image_Data", ""))
  if image_url:
- return image_url
+     return image_url
  if image_data:
- return f"data:image/jpeg;base64,{image_data}"
- return None
+     return f"data:image/jpeg;base64,{image_data}"
+     return None
 
 
 def calculate_fee_status(df_fees: pd.DataFrame, df_expenses: pd.DataFrame) -> pd.DataFrame:
