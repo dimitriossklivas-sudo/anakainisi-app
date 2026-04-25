@@ -627,17 +627,17 @@ def prepare_timeline_df(df_tasks: pd.DataFrame) -> pd.DataFrame:
         
     # 5. Επιστροφή του τελικού DataFrame για το Timeline
     return pd.DataFrame(rows)
- if start and end and end < start:
-     end = start
-     rows.append({
-     "Εργασία": task_name,
-     "Χώρος": safe_text(row.get("Χώρος"), "Άλλο"),
-     "Κατάσταση": safe_text(row.get("Κατάσταση"), "To Do"),
-     "Start": start,
-     "End": end,
-     "Ανάθεση": safe_text(row.get("Ανάθεση"), ""),
-     })
-     return pd.DataFrame(rows)
+         if start and end and end < start:
+             end = start
+             rows.append({
+             "Εργασία": task_name,
+             "Χώρος": safe_text(row.get("Χώρος"), "Άλλο"),
+             "Κατάσταση": safe_text(row.get("Κατάσταση"), "To Do"),
+             "Start": start,
+             "End": end,
+             "Ανάθεση": safe_text(row.get("Ανάθεση"), ""),
+             })
+             return pd.DataFrame(rows)
 
 
 def render_dashboard_section_title(title: str, subtitle: str):
