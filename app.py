@@ -1,133 +1,113 @@
-import base64
-import io
-import uuid
-from datetime import date, datetime, timedelta
-import pandas as pd
-import plotly.express as px
 import streamlit as st
-from PIL import Image
+import pandas as pd
+import uuid
+from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 
-# --- ΡΥΘΜΙΣΕΙΣ ΣΕΛΙΔΑΣ ---
+# --- CONFIG ---
 st.set_page_config(page_title="Methana Earth & Fire", layout="wide")
 
-# --- CUSTOM CSS ---
+# --- CSS ΓΙΑ ΤΟ DASHBOARD (ΣΧΕΔΙΟ ΣΟΥ) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #fbf6ee; }
-    .hero { background: linear-gradient(135deg, #3f2f22, #7a5a3d); color: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; }
-    div[data-testid="stMetric"] { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .card-container { background: white; padding: 20px; border-radius: 15px; border: 1px solid #e6e6e6; margin-bottom: 20px; box-shadow: 2px 2px 10px rgba(0,0,0,0.05); }
+    .card-title { color: #4c3826; font-weight: bold; border-bottom: 2px solid #dec18e; margin-bottom: 10px; }
+    .label { font-size: 0.85rem; font-weight: bold; }
+    .value { float: right; font-weight: normal; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- ΣΤΑΘΕΡΕΣ & ΟΝΟΜΑΤΑ SHEETS ---
-SHEETS = {
-    "EXP": "Expenses", "FEE": "Fees", "CON": "Contacts", 
-    "MAT": "Materials", "LOAN": "Loan", "TASK": "Progress", "GAL": "Gallery"
-}
-
-# --- ΣΥΝΔΕΣΗ & ΔΕΔΟΜΕΝΑ ---
+# --- CONNECTION ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-def load_data(sheet_name):
+def get_data():
     try:
-        df = conn.read(worksheet=sheet_name, ttl="10m")
-        return df.dropna(how="all") if df is not None else pd.DataFrame()
+        return conn.read(worksheet="Expenses", ttl=0)
     except:
-        return pd.DataFrame()
+        return pd.DataFrame(columns=["_id", "Ημερομηνία", "Κατηγορία", "Είδος", "Ποσό", "Πληρωτής", "Σημειώσεις"])
 
-# --- UTILS ---
-def safe_write(sheet_name, df):
-    try:
-        conn.update(worksheet=sheet_name, data=df)
-        st.cache_data.clear()
-        return True
-    except Exception as e:
-        st.error(f"Σφάλμα: {e}")
-        return False
+# --- DASHBOARD RENDERER ---
+def render_dashboard(df):
+    st.title("🏗️ Dashboard Ανακαίνισης")
+    if df.empty:
+        st.info("Δεν υπάρχουν δεδομένα για εμφάνιση.")
+        return
 
-# --- RENDERERS ---
-
-def render_materials(df_mat):
-    st.subheader("📦 Διαχείριση Υλικών")
-    with st.expander("➕ Προσθήκη Υλικού"):
-        with st.form("mat_form"):
-            name = st.text_input("Όνομα Υλικού")
-            cat = st.selectbox("Κατηγορία", ["Υδραυλικά", "Ηλεκτρολογικά", "Πλακάκια", "Άλλο"])
-            price = st.number_input("Τιμή Μονάδας", min_value=0.0)
-            qty = st.number_input("Ποσότητα", min_value=1)
-            if st.form_submit_button("Αποθήκευση"):
-                new_row = pd.DataFrame([{"_id": str(uuid.uuid4())[:8], "Υλικό": name, "Κατηγορία": cat, "Σύνολο": price*qty}])
-                updated = pd.concat([df_mat, new_row], ignore_index=True)
-                if safe_write(SHEETS["MAT"], updated):
-                    st.success("Το υλικό προστέθηκε!")
-                    st.rerun()
-    st.dataframe(df_mat, use_container_width=True)
-
-def render_timeline(df_tasks):
-    st.subheader("🗓️ Timeline Εργασιών")
-    if not df_tasks.empty and "Ημερομηνία_Έναρξης" in df_tasks.columns:
-        fig = px.timeline(df_tasks, x_start="Ημερομηνία_Έναρξης", x_end="Ημερομηνία_Λήξης", y="Εργασία", color="Κατάσταση")
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Δεν υπάρχουν δεδομένα για το Timeline.")
-
-def render_loans(df_loan):
-    st.subheader("🏦 Δάνεια & Χρηματοδότηση")
-    st.dataframe(df_loan, use_container_width=True)
-
-def render_gallery(df_gal):
-    st.subheader("📸 Gallery Φωτογραφιών")
-    if df_gal.empty:
-        st.info("Η Gallery είναι άδεια.")
-    else:
-        cols = st.columns(3)
-        for idx, row in df_gal.iterrows():
-            with cols[idx % 3]:
-                if "Image_Data" in row and row["Image_Data"]:
-                    st.image(f"data:image/jpeg;base64,{row['Image_Data']}", caption=row.get("Τίτλος", ""))
-
-# --- ΚΥΡΙΩΣ ΕΦΑΡΜΟΓΗ ---
-def main():
-    # Sidebar Menu
-    with st.sidebar:
-        st.title("Methana Menu")
-        choice = st.radio("Επιλέξτε Tab:", ["🏠 Dashboard", "💰 Έξοδα", "📦 Υλικά", "📞 Επαφές", "🏦 Δάνειο", "🗓️ Timeline", "📸 Gallery"])
-        if st.button("🔄 Ανανέωση Δεδομένων"):
-            st.cache_data.clear()
-            st.rerun()
-
-    # Φόρτωση όλων των δεδομένων (Lazy Loading)
-    if choice == "🏠 Dashboard":
-        df_exp = load_data(SHEETS["EXP"])
-        st.markdown('<div class="hero"><h1>Methana Earth & Fire</h1><p>Dashboard Ανακαίνισης</p></div>', unsafe_allow_html=True)
-        st.metric("Συνολικά Έξοδα", f"{pd.to_numeric(df_exp['Ποσό'], errors='coerce').sum():,.2f} €" if not df_exp.empty else "0 €")
+    # Παράδειγμα για "Υδραυλικά" (Όπως το σχέδιο στο χαρτί)
+    cat = "Υδραυλικά"
+    budget = 2400.0
     
-    elif choice == "💰 Έξοδα":
-        df_exp = load_data(SHEETS["EXP"])
-        # Εδώ θα έμπαινε η render_expenses που φτιάξαμε πριν
-        st.dataframe(df_exp)
+    # Υπολογισμοί
+    subset = df[df['Κατηγορία'] == cat]
+    paid = pd.to_numeric(subset['Ποσό'], errors='coerce').sum()
+    me = pd.to_numeric(subset[subset['Πληρωτής'] == 'Εγώ']['Ποσό'], errors='coerce').sum()
+    fat = pd.to_numeric(subset[subset['Πληρωτής'] == 'Πατέρας']['Ποσό'], errors='coerce').sum()
 
-    elif choice == "📦 Υλικά":
-        df_mat = load_data(SHEETS["MAT"])
-        render_materials(df_mat)
+    st.markdown(f'<div class="card-container"><div class="card-title">ΚΑΡΤΕΛΑ {cat.upper()}</div>', unsafe_allow_html=True)
+    st.write(f"ΣΥΝΟΛΟ ΚΑΛΥΜΜΕΝΟ: {paid:,.2f}€ / {budget:,.2f}€")
+    st.progress(min(paid/budget, 1.0) if budget > 0 else 0)
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        st.write(f"ΕΓΩ: {me:,.2f}€")
+        st.progress(min(me/(budget/2), 1.0) if budget > 0 else 0)
+    with c2:
+        st.write(f"ΠΑΤΕΡΑΣ: {fat:,.2f}€")
+        st.progress(min(fat/(budget/2), 1.0) if budget > 0 else 0)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    elif choice == "📞 Επαφές":
-        df_con = load_data(SHEETS["CON"])
-        st.dataframe(df_con)
+# --- EXPENSES FORM ---
+def render_expenses(df):
+    st.subheader("💰 Καταχώρηση Νέου Εξόδου")
+    
+    with st.form("expense_form", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            d = st.date_input("Ημερομηνία", datetime.now())
+            cat = st.selectbox("Κατηγορία", ["Υδραυλικά", "Ηλεκτρολογικά", "Πλακάκια", "Κουζίνα", "Βάψιμο", "Άλλο"])
+            etype = st.selectbox("Είδος", ["Αμοιβή", "Υλικά"])
+        with col2:
+            amt = st.number_input("Ποσό (€)", min_value=0.0, step=10.0, format="%.2f")
+            payer = st.selectbox("Πληρωτής", ["Εγώ", "Πατέρας", "Κοινό"])
+            notes = st.text_input("Σημειώσεις")
+        
+        submit = st.form_submit_button("✅ Αποθήκευση Εξόδου")
 
-    elif choice == "🏦 Δάνειο":
-        df_loan = load_data(SHEETS["LOAN"])
-        render_loans(df_loan)
+        if submit:
+            if amt <= 0:
+                st.error("Παρακαλώ βάλε ένα ποσό μεγαλύτερο από 0.")
+            else:
+                # Δημιουργία νέας γραμμής
+                new_row = {
+                    "_id": str(uuid.uuid4())[:8],
+                    "Ημερομηνία": d.strftime("%Y-%m-%d"),
+                    "Κατηγορία": cat,
+                    "Είδος": etype,
+                    "Ποσό": amt,
+                    "Πληρωτής": payer,
+                    "Σημειώσεις": notes
+                }
+                
+                # Προσθήκη και αποστολή στο Google Sheets
+                updated_df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+                conn.update(worksheet="Expenses", data=updated_df)
+                st.success("Το έξοδο καταχωρήθηκε επιτυχώς!")
+                st.rerun()
 
-    elif choice == "🗓️ Timeline":
-        df_tasks = load_data(SHEETS["TASK"])
-        render_timeline(df_tasks)
+    st.divider()
+    st.subheader("📊 Ιστορικό Εξόδων")
+    st.dataframe(df.sort_values(by="Ημερομηνία", ascending=False), use_container_width=True)
 
-    elif choice == "📸 Gallery":
-        df_gal = load_data(SHEETS["GAL"])
-        render_gallery(df_gal)
+# --- MAIN NAVIGATION ---
+def main():
+    df = get_data()
+    
+    menu = st.sidebar.radio("Μενού", ["🏠 Dashboard", "💰 Έξοδα"])
+    
+    if menu == "🏠 Dashboard":
+        render_dashboard(df)
+    else:
+        render_expenses(df)
 
 if __name__ == "__main__":
     main()
-
