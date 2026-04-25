@@ -482,10 +482,29 @@ def render_materials(df):
                 st.success("Οι αλλαγές αποθηκεύτηκαν.")
                 st.rerun()
     with col_b:
-        new_df, should_delete = delete_ui(edited, "Επέλεξε _id για διαγραφή", "del_mat")
-        if should_delete and safe_write(SHEET_MATERIALS, new_df):
-            st.success("Η εγγραφή διαγράφηκε.")
-            st.rerun()
+        if not edited.empty:
+            st.caption("Γρήγορη διαγραφή υλικού")
+            material_options = []
+            for _, row in edited.iterrows():
+                row_id = str(row.get("_id", ""))
+                label = (
+                    f"{row.get('Υλικό', '-')}"
+                    f" | {row.get('Κατηγορία', '-')}"
+                    f" | {format_currency(row.get('Σύνολο', 0))}"
+                    f" | id:{row_id}"
+                )
+                material_options.append((row_id, label))
+            selected_label = st.selectbox(
+                "Επίλεξε εγγραφή",
+                [opt[1] for opt in material_options],
+                key="del_mat_label",
+            )
+            selected_id = next((row_id for row_id, label in material_options if label == selected_label), None)
+            if st.button("🗑️ Διαγραφή υλικού", key="del_mat_btn") and selected_id:
+                new_df = delete_by_id(edited, selected_id)
+                if safe_write(SHEET_MATERIALS, new_df):
+                    st.success("Η εγγραφή διαγράφηκε.")
+                    st.rerun()
 
 
 def render_contacts(df):
