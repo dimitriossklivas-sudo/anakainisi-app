@@ -286,6 +286,78 @@ def calculate_material_split(df_material):
     return pd.DataFrame(summary)
 
 
+def apply_expense_filters(df, filters):
+    if df.empty:
+        return df
+    local = df.copy()
+    if "Ποσό" in local.columns:
+        local["Ποσό"] = money_series(local, "Ποσό")
+    if filters.get("categories") and "Κατηγορία" in local.columns:
+        local = local[local["Κατηγορία"].isin(filters["categories"])]
+    if filters.get("payers") and "Πληρωτής" in local.columns:
+        local = local[local["Πληρωτής"].isin(filters["payers"])]
+    if "Ημερομηνία" in local.columns:
+        dates = pd.to_datetime(local["Ημερομηνία"], errors="coerce")
+        start = filters.get("start_date")
+        end = filters.get("end_date")
+        if start is not None:
+            local = local[dates >= pd.Timestamp(start)]
+        if end is not None:
+            local = local[dates <= pd.Timestamp(end)]
+    search = filters.get("search", "").strip().lower()
+    if search:
+        cat_series = local["Κατηγορία"].astype(str) if "Κατηγορία" in local.columns else pd.Series("", index=local.index)
+        type_series = local["Είδος"].astype(str) if "Είδος" in local.columns else pd.Series("", index=local.index)
+        notes_series = local["Σημειώσεις"].astype(str) if "Σημειώσεις" in local.columns else pd.Series("", index=local.index)
+        combined = (
+            cat_series
+            + " "
+            + type_series
+            + " "
+            + notes_series
+        ).str.lower()
+        local = local[combined.str.contains(search, na=False)]
+    return local
+
+
+def apply_material_filters(df, filters):
+    if df.empty:
+        return df
+    local = df.copy()
+    if "Σύνολο" in local.columns:
+        local["Σύνολο"] = money_series(local, "Σύνολο")
+    if filters.get("categories") and "Κατηγορία" in local.columns:
+        local = local[local["Κατηγορία"].isin(filters["categories"])]
+    if filters.get("payers") and "Πληρωτής" in local.columns:
+        local = local[local["Πληρωτής"].isin(filters["payers"])]
+    search = filters.get("search", "").strip().lower()
+    if search:
+        material_series = local["Υλικό"].astype(str) if "Υλικό" in local.columns else pd.Series("", index=local.index)
+        supplier_series = local["Προμηθευτής"].astype(str) if "Προμηθευτής" in local.columns else pd.Series("", index=local.index)
+        notes_series = local["Σημειώσεις"].astype(str) if "Σημειώσεις" in local.columns else pd.Series("", index=local.index)
+        combined = (
+            material_series
+            + " "
+            + supplier_series
+            + " "
+            + notes_series
+        ).str.lower()
+        local = local[combined.str.contains(search, na=False)]
+    return local
+
+
+def build_excel_bytes(dataframes_by_sheet):
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+        for sheet_name, df in dataframes_by_sheet.items():
+            export_df = df.copy()
+            if "_id" in export_df.columns:
+                export_df = export_df.drop(columns=["_id"])
+            export_df.to_excel(writer, sheet_name=sheet_name[:31], index=False)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
 def prepare_timeline(df_tasks):
     if df_tasks.empty:
         return pd.DataFrame()
@@ -373,6 +445,14 @@ def render_dashboard(df_exp, df_fee, df_material, df_task):
 def render_expenses(df):
     st.subheader("💰 Έξοδα")
     current_df = st.session_state.get("expenses_local_df", df)
+    search_local = st.text_input("Αναζήτηση στα έξοδα", key="search_expenses_local")
+    display_df = current_df
+    if search_local.strip():
+        display_df = apply_expense_filters(
+            current_df,
+            {"categories": [], "payers": [], "start_date": None, "end_date": None, "search": search_local},
+        )
+        show_table(display_df)
     with st.expander("➕ Νέο έξοδο"):
         with st.form("expense_form"):
             col1, col2 = st.columns(2)
@@ -439,6 +519,14 @@ def render_fees(df):
 
 def render_materials(df):
     st.subheader("📦 Υλικά")
+    search_local = st.text_input("Αναζήτηση στα υλικά", key="search_materials_local")
+    base_df = df
+    if search_local.strip():
+        base_df = apply_material_filters(
+            df,
+            {"categories": [], "payers": [], "start_date": None, "end_date": None, "search": search_local},
+        )
+        show_table(base_df)
     with st.expander("➕ Νέο υλικό"):
         with st.form("material_form"):
             col1, col2 = st.columns(2)
@@ -677,7 +765,7 @@ def render_gallery(df):
                 st.caption(f"{row.get('Χώρος', '')} - {row.get('Τίτλος', '')}")
 
 
-def render_analytics(df_exp, df_material):
+def render_analytics(df_exp, df_material, df_fee):
     st.subheader("📊 Αναλύσεις")
     exp_total = money_series(df_exp, "Ποσό").sum()
     mat_total = money_series(df_material, "Σύνολο").sum()
@@ -696,6 +784,35 @@ def render_analytics(df_exp, df_material):
         by_cat_mat = mat_local.groupby("Κατηγορία", as_index=False)["Σύνολο"].sum()
         st.markdown("**Υλικά ανά κατηγορία (Materials)**")
         st.dataframe(by_cat_mat, use_container_width=True)
+
+    st.markdown("**Budget vs Actual (Αμοιβές)**")
+    if df_fee.empty:
+        st.info("Δεν υπάρχουν budget αμοιβών για σύγκριση.")
+    else:
+        fee_budget = df_fee.copy()
+        fee_budget["Ποσό"] = money_series(fee_budget, "Ποσό")
+        budget_by_cat = fee_budget.groupby("Κατηγορία", as_index=False)["Ποσό"].sum().rename(columns={"Ποσό": "Budget"})
+
+        actual_fees = pd.DataFrame(columns=["Κατηγορία", "Actual"])
+        if not df_exp.empty:
+            fee_exp = df_exp[df_exp["Είδος"] == "Αμοιβή"].copy()
+            fee_exp["Ποσό"] = money_series(fee_exp, "Ποσό")
+            actual_fees = fee_exp.groupby("Κατηγορία", as_index=False)["Ποσό"].sum().rename(columns={"Ποσό": "Actual"})
+
+        compare = budget_by_cat.merge(actual_fees, on="Κατηγορία", how="left").fillna({"Actual": 0.0})
+        compare["Διαφορά"] = compare["Actual"] - compare["Budget"]
+        compare["% Απόκλιση"] = compare.apply(
+            lambda r: ((r["Actual"] / r["Budget"]) - 1) * 100 if to_money(r["Budget"]) > 0 else 0.0,
+            axis=1,
+        )
+        compare["Κατάσταση"] = compare["% Απόκλιση"].apply(
+            lambda x: "⚠️ Υπέρβαση" if x > 10 else ("✅ Εντός" if x >= -10 else "⬇️ Κάτω budget")
+        )
+        st.dataframe(compare, use_container_width=True)
+        overruns = compare[compare["% Απόκλιση"] > 10]
+        if not overruns.empty:
+            cats = ", ".join(overruns["Κατηγορία"].astype(str).tolist())
+            st.warning(f"Υπέρβαση budget (>10%) στις κατηγορίες: {cats}")
 
 
 def render_calculator():
@@ -733,20 +850,69 @@ MENU_OPTIONS = [
 
 menu = st.sidebar.selectbox("Μενού", MENU_OPTIONS)
 
+with st.sidebar.expander("🔎 Global Filters", expanded=False):
+    filter_search = st.text_input("Αναζήτηση (γενική)", key="global_search")
+    filter_categories = st.multiselect("Κατηγορίες", EXPENSE_CATEGORIES, key="global_categories")
+    filter_payers = st.multiselect("Πληρωτής", PAYERS, key="global_payers")
+    use_date_filter = st.checkbox("Φίλτρο ημερομηνίας (Έξοδα)", value=False, key="use_global_date")
+    if use_date_filter:
+        date_start = st.date_input("Από", value=date.today() - timedelta(days=90), key="global_date_start")
+        date_end = st.date_input("Έως", value=date.today(), key="global_date_end")
+    else:
+        date_start = None
+        date_end = None
+
+global_filters = {
+    "search": filter_search,
+    "categories": filter_categories,
+    "payers": filter_payers,
+    "start_date": date_start,
+    "end_date": date_end,
+}
+
+with st.sidebar.expander("📤 Export"):
+    if st.button("Προετοιμασία Excel", key="prepare_excel_export"):
+        exp_df = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
+        fee_df = safe_read(SHEET_FEES, FEE_COLUMNS)
+        mat_df = safe_read(SHEET_MATERIALS, MATERIAL_COLUMNS)
+        task_df = safe_read(SHEET_TASKS, TASK_COLUMNS)
+        loan_df = safe_read(SHEET_LOANS, LOAN_COLUMNS)
+        st.session_state["excel_export_bytes"] = build_excel_bytes(
+            {
+                "Expenses": exp_df,
+                "Fees": fee_df,
+                "Materials": mat_df,
+                "Tasks": task_df,
+                "Loans": loan_df,
+            }
+        )
+        st.success("Το αρχείο Excel είναι έτοιμο.")
+    if "excel_export_bytes" in st.session_state:
+        st.download_button(
+            "Λήψη Excel",
+            data=st.session_state["excel_export_bytes"],
+            file_name=f"renovation_export_{date.today().isoformat()}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
 if menu == "🏠 Dashboard":
     df_expenses = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
     df_fees = safe_read(SHEET_FEES, FEE_COLUMNS)
     df_materials = safe_read(SHEET_MATERIALS, MATERIAL_COLUMNS)
     df_tasks = safe_read(SHEET_TASKS, TASK_COLUMNS)
+    df_expenses = apply_expense_filters(df_expenses, global_filters)
+    df_materials = apply_material_filters(df_materials, global_filters)
     render_dashboard(df_expenses, df_fees, df_materials, df_tasks)
 elif menu == "💰 Έξοδα":
     df_expenses = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
+    df_expenses = apply_expense_filters(df_expenses, global_filters)
     render_expenses(df_expenses)
 elif menu == "💼 Αμοιβές":
     df_fees = safe_read(SHEET_FEES, FEE_COLUMNS)
     render_fees(df_fees)
 elif menu == "📦 Υλικά":
     df_materials = safe_read(SHEET_MATERIALS, MATERIAL_COLUMNS)
+    df_materials = apply_material_filters(df_materials, global_filters)
     render_materials(df_materials)
 elif menu == "📞 Επαφές":
     df_contacts = safe_read(SHEET_CONTACTS, CONTACT_COLUMNS)
@@ -769,6 +935,9 @@ elif menu == "📸 Gallery":
 elif menu == "📊 Αναλύσεις":
     df_expenses = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
     df_materials = safe_read(SHEET_MATERIALS, MATERIAL_COLUMNS)
-    render_analytics(df_expenses, df_materials)
+    df_fees = safe_read(SHEET_FEES, FEE_COLUMNS)
+    df_expenses = apply_expense_filters(df_expenses, global_filters)
+    df_materials = apply_material_filters(df_materials, global_filters)
+    render_analytics(df_expenses, df_materials, df_fees)
 elif menu == "🧮 Calculator":
     render_calculator()
