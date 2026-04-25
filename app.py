@@ -734,7 +734,8 @@ def render_expenses(df_exp: pd.DataFrame):
                 amount = st.number_input("Ποσό (€)", min_value=0.0, step=10.0)
                 notes = st.text_input("Σημειώσεις")
 
-            if st.form_submit_button("Αποθήκευση"):
+            submitted = st.form_submit_button("Αποθήκευση")
+            if submitted:
                 new_data = {
                     "Ημερομηνία": str(expense_date),
                     "Κατηγορία": category,
@@ -756,20 +757,19 @@ def render_expenses(df_exp: pd.DataFrame):
     temp["Ποσό"] = money_series(temp, "Ποσό")
 
     st.markdown("### Στατιστική Εικόνα")
-    tabs = st.tabs(["📊 Ομαδοποιημένα", "📋 Αναλυτικά", "🗑️ Διαγραφή"])
+    tab1, tab2, tab3 = st.tabs(["📊 Ομαδοποιημένα", "📋 Αναλυτικά", "🗑️ Διαγραφή"])
 
-    with tabs[0]:
+    with tab1:
         group_view = temp.groupby(["Κατηγορία", "Είδος"], as_index=False)["Ποσό"].sum()
         st.dataframe(group_view, use_container_width=True)
         st.plotly_chart(make_bar_chart(group_view, "Κατηγορία", "Ποσό", "Έξοδα ανά κατηγορία"), use_container_width=True)
 
-    with tabs[1]:
+    with tab
+        with tab2:
         show_table(temp)
 
-    with tabs[2]:
+    with tab3:
         labels = {}
-        for _, row in temp.iterrows
-                labels = {}
         for _, row in temp.iterrows():
             rid = safe_text(row["_id"])
             labels[rid] = f"{row['Ημερομηνία']} | {row['Κατηγορία']} | {format_currency(row['Ποσό'])}"
