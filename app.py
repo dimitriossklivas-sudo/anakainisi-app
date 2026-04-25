@@ -747,14 +747,472 @@ def render_expenses(df_exp: pd.DataFrame):
     st.subheader("💰 Έξοδα")
     
     with st.expander("➕ Νέο έξοδο", expanded=False):
-        with st.form("expense_add_form", clear_on_submit=True):
+                        notes = st.text_input("Σημειώσεις")
+            
+            if st.form_submit_button("Αποθήκευση"):
+                new_data = {
+                    "Ημερομηνία": str(expense_date),
+                    "Κατηγορία": category,
+                    "Είδος": expense_type,
+                    "Ποσό": amount,
+                    "Πληρωτής": payer,
+                    "Σημειώσεις": notes.strip(),
+                }
+                updated_df = append_row(df_exp, new_data, EXPENSE_COLUMNS)
+                if safe_write(SHEET_EXPENSES, updated_df):
+                    st.success("Το έξοδο αποθηκεύτηκε.")
+                    st.rerun()
+
+    if df_exp.empty:
+        st.info("Δεν υπάρχουν έξοδα.")
+        return
+
+    temp = df_exp.copy()
+    temp["Ποσό"] = money_series(temp, "Ποσό")
+
+    st.markdown("### Στατιστική Εικόνα")
+    tabs = st.tabs(["📊 Ομαδοποιημένα", "📋 Αναλυτικά", "🗑️ Διαγραφή"])
+    
+    with tabs[0]:
+        group_view = temp.groupby(["Κατηγορία", "Είδος"], as_index=False)["Ποσό"].sum()
+        st.dataframe(group_view, use_container_width=True)
+        st.plotly_chart(make_bar_chart(group_view, "Κατηγορία", "Ποσό", "Έξοδα ανά κατηγορία"), use_container_width=True)
+
+    with tabs[1]:
+        show_table(temp)
+
+    with tabs[2]:
+        labels = {}
+        for _, row in temp.iterrows():
+            rid = safe_text(row["_id"])
+            labels[rid] = f"{row['Ημερομηνία']} | {row['Κατηγορία']} | {format_currency(row['Ποσό'])}"
+        
+        selected_id = st.selectbox("Επιλογή για διαγραφή", options=list(labels.keys()), format_func=lambda x: labels[x])
+        
+        if st.button("🗑️ Οριστική Διαγραφή"):
+            updated_df = delete_row_by_id(df_exp, selected_id)
+            if safe_write(SHEET_EXPENSES, updated_df):
+                st.success("Η καταχώρηση διαγράφηκε.")
+                st.rerun()
+
+
+def render_fees(df_fee: pd.DataFrame, df_exp: pd.DataFrame):
+    st.subheader("💼 Αμοιβές Συνεργείων")
+    
+    with st.expander("➕ Νέα αμοιβή", expanded=False):
+        with st.form("fee_add_form", clear_on_submit=True):
+            c1, c2 = st.columns(2)
+            with c1:
+                category = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES)
+                total_amount = st.number_input("Συνολικό Ποσό (€)", min_value=0.0, step=100.0)
+            with c2:
+                description = st.text_input("Περιγραφή εργασίας")
+                notes = st.text_input("Σημειώσεις")
+            
+            if st.form_submit_button("Αποθήκευση αμοιβής"):
+                if description.strip():
+                    updated_df = append_row(
+                        df_fee,
+                        {
+                            "Κατηγορία": category,
+                            "Περιγραφή": description.strip(),
+                            "Ποσό": total_amount,
+                            "Σημειώσεις": notes.strip(),
+                        },
+                        FEE_COLUMNS,
+                    )
+                    if safe_write(SHEET_FEES, updated_df):
+                        st.success("Η αμοιβή καταχωρήθηκε.")
+                        st.rerun()
+                else:
+                    st.warning("Παρακαλώ συμπληρώστε περιγραφή")
+    
+    st.markdown("### Υπάρχουσες Αμοιβές")
+    fee_status = calculate_fee_status(df_fee, df_exp)
+    if not fee_status.empty:
+        display_df = fee_status[["Κατηγορία", "Περιγραφή", "Συνολικό Ποσό", "Πλήρωσα Εγώ", "Πλήρωσε Πατέρας"]].copy()
+        display_df["Συνολικό Ποσό"] = display_df["Συνολικό Ποσό"].apply(format_currency)
+        display_df["Πλήρωσα Εγώ"] = display_df["Πλήρωσα Εγώ"].apply(format_currency)
+        display_df["Πλήρωσε Πατέρας"] = display_df["Πλήρωσε Πατέρας"].apply(format_currency)
+        st.dataframe(display_df, use_container_width=True)
+    else:
+        st.info("Δεν υπάρχουν καταχωρημένες αμοιβές")
+
+
+def render_materials(df_material: pd.DataFrame):
+    st.subheader("📦 Υλικά")
+    with st.expander("➕ Νέο υλικό", expanded=False):
+        with st.form("material_add_form", clear_on_submit=True):
             c1, c2, c3 = st.columns(3)
             with c1:
-                expense_date = st.date_input("Ημερομηνία")
-                category = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES)
+                category = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES, key="material_category")
+                material_name = st.text_input("Υλικό")
+                supplier = st.text_input("Προμηθευτής")
             with c2:
-                expense_type = st.selectbox("Είδος", EXPENSE_TYPES)
-                payer = st.selectbox("Πληρωτής", PAYERS)
+                quantity = st.number_input("Ποσότητα", min_value=0.0, step=1.0)
+                unit = st.selectbox("Μονάδα", MATERIAL_UNITS)
+                unit_price = st.number_input("Τιμή μονάδας (€)", min_value=0.0, step=0.5)
+            with c3:
+                status = st.selectbox("Κατάσταση", MATERIAL_STATUS)
+                total = st.number_input("Σύνολο (€)", min_value=0.0, step=1.0, value=0.0)
+                notes = st.text_input("Σημειώσεις")
+            final_total = total if total > 0 else quantity * unit_price
+            if st.form_submit_button("Αποθήκευση υλικού") and material_name.strip():
+                updated_df = append_row(
+                    df_material,
+                    {
+                        "Κατηγορία": category,
+                        "Υλικό": material_name.strip(),
+                        "Ποσότητα": quantity,
+                        "Μονάδα": unit,
+                        "Τιμή_Μονάδας": unit_price,
+                        "Σύνολο": final_total,
+                        "Προμηθευτής": supplier.strip(),
+                        "Κατάσταση": status,
+                        "Σημειώσεις": notes.strip(),
+                    },
+                    MATERIAL_COLUMNS,
+                )
+                if safe_write(SHEET_MATERIALS, updated_df):
+                    st.success("Το υλικό αποθηκεύτηκε.")
+                    st.rerun()
+    show_table(df_material)
+    summary = calculate_material_summary(df_material)
+    if not summary.empty:
+        st.plotly_chart(make_bar_chart(summary, "Κατηγορία", "Σύνολο", "Κόστος υλικών"), use_container_width=True)
+
+
+def render_contacts(df_contact: pd.DataFrame):
+    st.subheader("📞 Επαφές")
+    with st.expander("➕ Νέα επαφή", expanded=False):
+        with st.form("contact_add_form", clear_on_submit=True):
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                name = st.text_input("Όνομα")
+                role = st.selectbox("Ρόλος", CONTACT_ROLES)
+            with c2:
+                phone = st.text_input("Τηλέφωνο")
+                email = st.text_input("Email")
+            with c3:
+                area = st.text_input("Περιοχή")
+                notes = st.text_input("Σημειώσεις")
+            if st.form_submit_button("Αποθήκευση επαφής") and name.strip():
+                updated_df = append_row(
+                    df_contact,
+                    {
+                        "Όνομα": name.strip(),
+                        "Ρόλος": role,
+                        "Τηλέφωνο": phone.strip(),
+                        "Email": email.strip(),
+                        "Περιοχή": area.strip(),
+                        "Σημειώσεις": notes.strip(),
+                    },
+                    CONTACT_COLUMNS,
+                )
+                if safe_write(SHEET_CONTACTS, updated_df):
+                    st.success("Η επαφή αποθηκεύτηκε.")
+                    st.rerun()
+    show_table(df_contact)
+
+
+def render_loans(df_loan: pd.DataFrame):
+    st.subheader("🏦 Δάνειο")
+    with st.expander("➕ Νέα καταχώρηση δανείου", expanded=False):
+        with st.form("loan_add_form", clear_on_submit=True):
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                description = st.text_input("Περιγραφή")
+                principal = st.number_input("Κεφάλαιο (€)", min_value=0.0, step=100.0)
+                start_date = st.date_input("Έναρξη")
+            with c2:
+                rate = st.number_input("Επιτόκιο (%)", min_value=0.0, step=0.1)
+                months = st.number_input("Μήνες", min_value=1, step=1)
+                status = st.selectbox("Κατάσταση", LOAN_STATUS)
+            with c3:
+                installment = calculate_loan_installment(principal, rate, int(months))
+                st.metric("Υπολογισμένη δόση", format_currency(installment))
+                notes = st.text_input("Σημειώσεις")
+            if st.form_submit_button("Αποθήκευση δανείου") and description.strip():
+                updated_df = append_row(
+                    df_loan,
+                    {
+                        "Περιγραφή": description.strip(),
+                        "Κεφάλαιο": principal,
+                        "Επιτόκιο": rate,
+                        "Μήνες": int(months),
+                        "Μηνιαία_Δόση": installment,
+                        "Έναρξη": str(start_date),
+                        "Κατάσταση": status,
+                        "Σημειώσεις": notes.strip(),
+                    },
+                    LOAN_COLUMNS,
+                )
+                if safe_write(SHEET_LOANS, updated_df):
+                    st.success("Το δάνειο αποθηκεύτηκε.")
+                    st.rerun()
+    show_table(df_loan)
+
+
+def render_timeline(df_task: pd.DataFrame):
+    st.subheader("🗓️ Timeline / Gantt")
+    with st.expander("➕ Νέα εργασία", expanded=False):
+        with st.form("timeline_add_form", clear_on_submit=True):
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                task_name = st.text_input("Εργασία")
+                room = st.selectbox("Χώρος", ROOMS)
+                status = st.selectbox("Κατάσταση", TASK_STATUSES)
+            with c2:
+                start = st.date_input("Ημερομηνία έναρξης")
+                end = st.date_input("Ημερομηνία λήξης")
+            with c3:
+                cost = st.number_input("Κόστος (€)", min_value=0.0, step=10.0)
+                priority = st.selectbox("Προτεραιότητα", TASK_PRIORITIES)
+                assignee = st.text_input("Ανάθεση")
+                notes = st.text_input("Σημειώσεις")
+            if st.form_submit_button("Αποθήκευση") and task_name.strip():
+                updated_df = append_row(
+                    df_task,
+                    {
+                        "Εργασία": task_name.strip(),
+                        "Χώρος": room,
+                        "Κατάσταση": status,
+                        "Ημερομηνία_Έναρξης": str(start),
+                        "Ημερομηνία_Λήξης": str(end),
+                        "Κόστος": cost,
+                        "Προτεραιότητα": priority,
+                        "Ανάθεση": assignee.strip(),
+                        "Σημειώσεις": notes.strip(),
+                    },
+                    TASK_COLUMNS,
+                )
+                if safe_write(SHEET_TASKS, updated_df):
+                    st.success("Η εργασία αποθηκεύτηκε.")
+                    st.rerun()
+    
+    timeline_df = prepare_timeline_df(df_task)
+    if not timeline_df.empty:
+        gantt = px.timeline(
+            timeline_df,
+            x_start="Start",
+            x_end="End",
+            y="Task",
+            color="Resource",
+            color_discrete_map={"To Do": "#c9a96b", "Doing": "#3f7d6b", "Done": "#915f35"},
+            title="Project Planning",
+        )
+        gantt.update_layout(height=520, margin=dict(l=10, r=10, t=55, b=10))
+        gantt.update_yaxes(autorange="reversed")
+        st.plotly_chart(gantt, use_container_width=True)
+    show_table(df_task)
+
+
+def render_tasks(df_task: pd.DataFrame):
+    st.subheader("📋 Εργασίες")
+    show_table(df_task)
+
+
+def render_offers(df_off: pd.DataFrame):
+    st.subheader("💼 Προσφορές")
+    with st.expander("➕ Νέα προσφορά", expanded=False):
+        with st.form("offer_add_form", clear_on_submit=True):
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                provider = st.text_input("Πάροχος")
+                category = st.selectbox("Κατηγορία", OFFER_CATEGORIES)
+            with c2:
+                description = st.text_input("Περιγραφή")
             with c3:
                 amount = st.number_input("Ποσό (€)", min_value=0.0, step=10.0)
-                notes = st.text_input("Σημειώ
+                notes = st.text_input("Σημειώσεις")
+            if st.form_submit_button("Αποθήκευση") and provider.strip():
+                updated_df = append_row(
+                    df_off,
+                    {
+                        "Πάροχος": provider.strip(),
+                        "Περιγραφή": description.strip(),
+                        "Ποσό": amount,
+                        "Κατηγορία": category,
+                        "Σημειώσεις": notes.strip(),
+                    },
+                    OFFER_COLUMNS,
+                )
+                if safe_write(SHEET_OFFERS, updated_df):
+                    st.success("Η προσφορά αποθηκεύτηκε.")
+                    st.rerun()
+    show_table(df_off)
+
+
+def render_gallery(df_gal: pd.DataFrame):
+    st.subheader("📸 Gallery")
+    with st.expander("➕ Νέα εικόνα", expanded=False):
+        with st.form("gallery_add_form", clear_on_submit=True):
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                room = st.selectbox("Χώρος", ROOMS)
+            with c2:
+                title = st.text_input("Τίτλος")
+            with c3:
+                image_type = st.selectbox("Τύπος", IMAGE_TYPES)
+            uploaded_image = st.file_uploader("Ανέβασε εικόνα", type=["png", "jpg", "jpeg", "webp"], key="gallery_upload")
+            image_url = st.text_input("ή Image URL")
+            notes = st.text_input("Σημειώσεις")
+            if st.form_submit_button("Αποθήκευση εικόνας"):
+                image_data = ""
+                final_url = image_url.strip()
+                if uploaded_image is not None:
+                    try:
+                        image_data = image_to_base64(uploaded_image)
+                    except Exception as e:
+                        st.error(f"Σφάλμα επεξεργασίας εικόνας: {e}")
+                        st.stop()
+                if not final_url and not image_data:
+                    st.warning("Βάλε είτε upload εικόνας είτε Image URL.")
+                else:
+                    updated_df = append_row(
+                        df_gal,
+                        {
+                            "Χώρος": room,
+                            "Τίτλος": title.strip(),
+                            "Τύπος": image_type,
+                            "Image_URL": final_url,
+                            "Image_Data": image_data,
+                            "Σημειώσεις": notes.strip(),
+                        },
+                        GALLERY_COLUMNS,
+                    )
+                    if safe_write(SHEET_GALLERY, updated_df):
+                        st.success("Η εικόνα αποθηκεύτηκε.")
+                        st.rerun()
+    if df_gal.empty:
+        st.info("Δεν υπάρχουν εικόνες.")
+        return
+    preview = df_gal.tail(6)
+    cols = st.columns(3)
+    for idx, (_, row) in enumerate(preview.iterrows()):
+        with cols[idx % 3]:
+            src = image_source_from_row(row)
+            if src:
+                st.image(src, use_container_width=True)
+            st.caption(f"{safe_text(row['Χώρος'])} | {safe_text(row['Τίτλος'])}")
+
+
+def render_analytics(df_exp: pd.DataFrame, df_fee: pd.DataFrame, df_material: pd.DataFrame, df_task: pd.DataFrame, df_off: pd.DataFrame):
+    st.subheader("📊 Αναλύσεις")
+    left, right = st.columns(2)
+    with left:
+        card_start("Έξοδα ανά κατηγορία")
+        if not df_exp.empty:
+            temp = df_exp.copy()
+            temp["Ποσό"] = money_series(temp, "Ποσό")
+            summary = temp.groupby("Κατηγορία", as_index=False)["Ποσό"].sum().sort_values("Ποσό", ascending=False)
+            st.dataframe(summary, use_container_width=True)
+            st.plotly_chart(make_bar_chart(summary, "Κατηγορία", "Ποσό", "Σύνολο ανά κατηγορία"), use_container_width=True)
+        else:
+            st.info("Δεν υπάρχουν δεδομένα.")
+        card_end()
+        card_start("Υλικά ανά κατηγορία")
+        material_summary = calculate_material_summary(df_material)
+        if not material_summary.empty:
+            st.dataframe(material_summary, use_container_width=True)
+            st.plotly_chart(make_bar_chart(material_summary, "Κατηγορία", "Σύνολο", "Κόστος υλικών"), use_container_width=True)
+        else:
+            st.info("Δεν υπάρχουν υλικά.")
+        card_end()
+    with right:
+        card_start("Αμοιβές και συμμετοχές")
+        fee_status_df = calculate_fee_status(df_fee, df_exp)
+        if not fee_status_df.empty:
+            display_df = fee_status_df[["Κατηγορία", "Περιγραφή", "Συνολικό Ποσό", "Πλήρωσα Εγώ", "Πλήρωσε Πατέρας"]].copy()
+            display_df["Συνολικό Ποσό"] = display_df["Συνολικό Ποσό"].apply(format_currency)
+            display_df["Πλήρωσα Εγώ"] = display_df["Πλήρωσα Εγώ"].apply(format_currency)
+            display_df["Πλήρωσε Πατέρας"] = display_df["Πλήρωσε Πατέρας"].apply(format_currency)
+            st.dataframe(display_df, use_container_width=True)
+        else:
+            st.info("Δεν υπάρχουν αμοιβές.")
+        card_end()
+        card_start("Εργασίες ανά κατάσταση")
+        if not df_task.empty:
+            summary = df_task["Κατάσταση"].value_counts().rename_axis("Κατάσταση").reset_index(name="Πλήθος")
+            st.dataframe(summary, use_container_width=True)
+            st.plotly_chart(make_bar_chart(summary, "Κατάσταση", "Πλήθος", "Κατανομή εργασιών"), use_container_width=True)
+        else:
+            st.info("Δεν υπάρχουν εργασίες.")
+        card_end()
+
+
+def render_calculator():
+    st.subheader("🧮 Calculator")
+    mode = st.selectbox("Τύπος υπολογισμού", ["Πλακάκια", "Χρώματα"])
+    if mode == "Πλακάκια":
+        area = st.number_input("m2 Επιφάνειας", min_value=0.0, value=10.0)
+        width = st.number_input("Πλάτος πλακιδίου (cm)", min_value=0.1, value=60.0)
+        height = st.number_input("Ύψος πλακιδίου (cm)", min_value=0.1, value=120.0)
+        waste = st.number_input("Ποσοστό φύρας (%)", min_value=0.0, value=10.0)
+        tile_area = (width * height) / 10000
+        pieces = area / tile_area if tile_area > 0 else 0
+        pieces = int(pieces * (1 + waste / 100)) + 1
+        st.metric("Τεμάχια που θα χρειαστείς", pieces)
+    else:
+        wall_area = st.number_input("m2 Τοίχου", min_value=0.0, value=50.0)
+        coats = st.number_input("Χέρια", min_value=1, value=2)
+        coverage = st.number_input("Απόδοση (m2/λίτρο)", min_value=1.0, value=12.0)
+        liters = (wall_area * coats) / coverage
+        st.metric("Λίτρα χρώματος", f"{liters:.1f} L")
+
+
+# ============================================
+# MAIN - Load Data & Routing
+# ============================================
+
+# Φόρτωση όλων των δεδομένων
+df_expenses = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
+df_fees = safe_read(SHEET_FEES, FEE_COLUMNS)
+df_contacts = safe_read(SHEET_CONTACTS, CONTACT_COLUMNS)
+df_materials = safe_read(SHEET_MATERIALS, MATERIAL_COLUMNS)
+df_loans = safe_read(SHEET_LOANS, LOAN_COLUMNS)
+df_tasks = safe_read(SHEET_TASKS, TASK_COLUMNS)
+df_offers = safe_read(SHEET_OFFERS, OFFER_COLUMNS)
+df_gallery = safe_read(SHEET_GALLERY, GALLERY_COLUMNS)
+
+# Sidebar
+st.sidebar.markdown("### Πλοήγηση")
+menu = st.sidebar.selectbox("Μενού", MENU_OPTIONS, index=0)
+st.sidebar.markdown("---")
+st.sidebar.caption(f"Τελευταία ενημέρωση: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+st.sidebar.caption("Κατασκευαστής εφαρμογής: Σκλίβας Δημήτριος")
+
+# Routing
+if menu == "🏠 Dashboard":
+    render_dashboard(df_expenses, df_fees, df_materials, df_loans, df_tasks, df_offers, df_gallery)
+elif menu == "💰 Έξοδα":
+    render_expenses(df_expenses)
+elif menu == "💼 Αμοιβές":
+    render_fees(df_fees, df_expenses)
+elif menu == "📦 Υλικά":
+    render_materials(df_materials)
+elif menu == "📞 Επαφές":
+    render_contacts(df_contacts)
+elif menu == "🏦 Δάνειο":
+    render_loans(df_loans)
+elif menu == "🗓️ Timeline":
+    render_timeline(df_tasks)
+elif menu == "📋 Εργασίες":
+    render_tasks(df_tasks)
+elif menu == "💼 Προσφορές":
+    render_offers(df_offers)
+elif menu == "📸 Gallery":
+    render_gallery(df_gallery)
+elif menu == "📊 Αναλύσεις":
+    render_analytics(df_expenses, df_fees, df_materials, df_tasks, df_offers)
+elif menu == "🧮 Calculator":
+    render_calculator()
+
+st.markdown(
+    """
+    <div class="maker">
+        Κατασκευαστής εφαρμογής: <strong>Σκλίβας Δημήτριος</strong>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
