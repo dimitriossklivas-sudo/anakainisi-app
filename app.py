@@ -11,6 +11,8 @@ from PIL import Image
 from streamlit_gsheets import GSheetsConnection
 
 st.set_page_config(page_title="Methana Earth & Fire v2", layout="wide")
+APP_VERSION = "v2.2"
+APP_BUILDER = "ΣΚΛΙΒΑΣ Σ. ΔΗΜΗΤΡΙΟΣ"
 
 
 # -----------------------------
@@ -22,6 +24,89 @@ def get_connection():
 
 
 conn = get_connection()
+
+
+def inject_v22_theme():
+    st.markdown(
+        f"""
+        <style>
+        :root {{
+            --volcanic-black: #1c1b1a;
+            --basalt-gray: #2f3437;
+            --sulfur-gold: #c9a96b;
+            --aegean-blue: #2e6f95;
+            --sea-foam: #cfe8e6;
+            --lava-rust: #915f35;
+        }}
+        .stApp {{
+            background: linear-gradient(180deg, #fbfaf8 0%, #f3f0ea 100%);
+        }}
+        section[data-testid="stSidebar"] {{
+            background: linear-gradient(180deg, #1f2428 0%, #2f3437 100%);
+        }}
+        section[data-testid="stSidebar"] * {{
+            color: #f3efe7 !important;
+        }}
+        div[data-testid="stMetric"] {{
+            background: #ffffff;
+            border: 1px solid rgba(47, 52, 55, 0.12);
+            border-radius: 14px;
+            padding: 10px 12px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+        }}
+        .methana-hero {{
+            border-radius: 16px;
+            padding: 14px 18px;
+            margin-bottom: 10px;
+            color: #ffffff;
+            background:
+                linear-gradient(120deg, rgba(145,95,53,0.95) 0%, rgba(47,52,55,0.94) 45%, rgba(46,111,149,0.95) 100%);
+            box-shadow: 0 10px 24px rgba(25, 25, 25, 0.15);
+        }}
+        .methana-hero .title {{
+            font-size: 1.2rem;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+        }}
+        .methana-hero .subtitle {{
+            opacity: 0.92;
+            font-size: 0.9rem;
+            margin-top: 2px;
+        }}
+        .app-watermark {{
+            position: fixed;
+            bottom: 16px;
+            right: 18px;
+            z-index: 9999;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            color: rgba(28, 27, 26, 0.28);
+            pointer-events: none;
+            user-select: none;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(47, 52, 55, 0.12);
+            border-radius: 999px;
+            padding: 4px 10px;
+            backdrop-filter: blur(2px);
+        }}
+        </style>
+        <div class="app-watermark">Κατασκευαστής app: {APP_BUILDER}</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_brand_header():
+    st.markdown(
+        f"""
+        <div class="methana-hero">
+            <div class="title">🌋 Methana Earth & Fire - Renovation Suite {APP_VERSION}</div>
+            <div class="subtitle">Volcanic precision • Sea balance • Stone-solid tracking</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 SHEET_EXPENSES = "Expenses"
 SHEET_FEES = "Fees"
@@ -831,7 +916,9 @@ def render_calculator():
 # -----------------------------
 # MAIN
 # -----------------------------
+inject_v22_theme()
 st.sidebar.markdown("### Πλοήγηση")
+st.sidebar.caption(f"{APP_VERSION} • Κατασκευαστής: {APP_BUILDER}")
 
 MENU_OPTIONS = [
     "🏠 Dashboard",
@@ -849,6 +936,7 @@ MENU_OPTIONS = [
 ]
 
 menu = st.sidebar.selectbox("Μενού", MENU_OPTIONS)
+render_brand_header()
 
 with st.sidebar.expander("🔎 Global Filters", expanded=False):
     filter_search = st.text_input("Αναζήτηση (γενική)", key="global_search")
