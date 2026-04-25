@@ -477,17 +477,17 @@ def image_source_from_row(row: pd.Series):
 
 
 def calculate_fee_status(df_fee: pd.DataFrame, df_exp: pd.DataFrame):
-    # Διασφάλιση ότι έχουμε DataFrame για να αποφύγουμε AttributeError
-    if df_exp is None or df_exp.empty:
+    # Διασφάλιση ότι επιστρέφουμε DataFrame ακόμα και αν δεν υπάρχουν δεδομένα
+    if df_exp is None or df_exp.empty or df_fee is None or df_fee.empty:
         return pd.DataFrame()
     
     results = []
-    # Χρησιμοποιούμε το σωστό όνομα μεταβλητής: df_exp
+    # Loop σε κάθε κατηγορία αμοιβής που έχει οριστεί στα Google Sheets
     for _, fee in df_fee.iterrows():
-        cat = fee["Κατηγορία"]
+        cat = fee.get("Κατηγορία", "Άγνωστο")
         target = float(fee.get("Ποσό", 0))
         
-        # Φιλτράρουμε τα έξοδα για τη συγκεκριμένη αμοιβή
+        # Φιλτράρουμε τα έξοδα για τη συγκεκριμένη κατηγορία ΚΑΙ το είδος "Αμοιβή"
         relevant = df_exp[(df_exp["Κατηγορία"] == cat) & (df_exp["Είδος"] == "Αμοιβή")]
         
         paid_me = relevant[relevant["Πληρωτής"] == "Εγώ"]["Ποσό"].sum()
@@ -538,11 +538,10 @@ def calculate_material_summary(df_materials: pd.DataFrame) -> pd.DataFrame:
 
 
 def calculate_material_split_from_expenses(df_exp: pd.DataFrame):
-    # Διασφάλιση ότι επιστρέφουμε DataFrame και όχι None
     if df_exp is None or df_exp.empty:
         return pd.DataFrame()
         
-    # Φιλτράρουμε μόνο τα υλικά
+    # Φιλτράρουμε μόνο τα "Υλικά"
     mats = df_exp[df_exp["Είδος"] == "Υλικά"]
     if mats.empty:
         return pd.DataFrame()
