@@ -90,6 +90,52 @@ def inject_v22_theme():
             padding: 4px 10px;
             backdrop-filter: blur(2px);
         }}
+        .stApp [data-testid="stMetricLabel"] p,
+        .stApp [data-testid="stMetricValue"] div,
+        .stApp [data-testid="stMetricDelta"] div {{
+            color: #1f2328 !important;
+        }}
+
+        /* Dark mode contrast fixes */
+        @media (prefers-color-scheme: dark) {{
+            .stApp {{
+                background: linear-gradient(180deg, #111416 0%, #161b1f 100%) !important;
+            }}
+            .stApp, .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4 {{
+                color: #e9edf1 !important;
+            }}
+            .stApp [data-testid="stMetric"] {{
+                background: #1f2428 !important;
+                border: 1px solid rgba(233, 237, 241, 0.16) !important;
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25) !important;
+            }}
+            .stApp [data-testid="stMetricLabel"] p,
+            .stApp [data-testid="stMetricValue"] div,
+            .stApp [data-testid="stMetricDelta"] div {{
+                color: #f5f7fa !important;
+            }}
+            .stApp [data-baseweb="input"] input,
+            .stApp [data-baseweb="textarea"] textarea {{
+                color: #f5f7fa !important;
+                -webkit-text-fill-color: #f5f7fa !important;
+            }}
+            .stApp [data-baseweb="select"] *,
+            .stApp div[data-testid="stDataFrame"] * {{
+                color: #e9edf1 !important;
+            }}
+            .app-watermark {{
+                color: rgba(233, 237, 241, 0.78) !important;
+                background: rgba(20, 24, 28, 0.52) !important;
+                border: 1px solid rgba(233, 237, 241, 0.2) !important;
+            }}
+        }}
+
+        /* Streamlit explicit dark theme attribute fallback */
+        .stApp[data-theme="dark"] [data-testid="stMetricLabel"] p,
+        .stApp[data-theme="dark"] [data-testid="stMetricValue"] div,
+        .stApp[data-theme="dark"] [data-testid="stMetricDelta"] div {{
+            color: #f5f7fa !important;
+        }}
         </style>
         <div class="app-watermark">Κατασκευαστής app: {APP_BUILDER}</div>
         """,
