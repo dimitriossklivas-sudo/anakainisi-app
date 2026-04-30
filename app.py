@@ -419,21 +419,45 @@ def calculate_material_split(df_material):
 
 def calculate_total_spend_breakdown(df_exp, df_material):
     fees = df_exp[df_exp["Είδος"] == "Αμοιβή"].copy() if not df_exp.empty else pd.DataFrame()
-    mats = df_material.copy() if not df_material.empty else pd.DataFrame()
+    mats_exp = df_exp[df_exp["Είδος"] == "Υλικά"].copy() if not df_exp.empty else pd.DataFrame()
+    mats_sheet = df_material.copy() if not df_material.empty else pd.DataFrame()
+    others_exp = (
+        df_exp[~df_exp["Είδος"].isin(["Αμοιβή", "Υλικά"])].copy()
+        if not df_exp.empty and "Είδος" in df_exp.columns
+        else pd.DataFrame()
+    )
 
-    fees_me = money_series(fees[fees["Πληρωτής"] == "Εγώ"], "Ποσό").sum() if not fees.empty else 0.0
-    fees_father = money_series(fees[fees["Πληρωτής"] == "Πατέρας"], "Ποσό").sum() if not fees.empty else 0.0
+    def split_by_payer(local_df, amount_col):
+        if local_df.empty:
+            return 0.0, 0.0, 0.0
+        me = money_series(local_df[local_df["Πληρωτής"] == "Εγώ"], amount_col).sum()
+        father = money_series(local_df[local_df["Πληρωτής"] == "Πατέρας"], amount_col).sum()
+        common = money_series(local_df[local_df["Πληρωτής"] == "Κοινό"], amount_col).sum()
+        other = money_series(
+            local_df[~local_df["Πληρωτής"].isin(["Εγώ", "Πατέρας", "Κοινό"])],
+            amount_col,
+        ).sum()
+        return me + (common / 2), father + (common / 2), other
 
-    mats_me = money_series(mats[mats["Πληρωτής"] == "Εγώ"], "Σύνολο").sum() if not mats.empty else 0.0
-    mats_father = money_series(mats[mats["Πληρωτής"] == "Πατέρας"], "Σύνολο").sum() if not mats.empty else 0.0
+    fees_me, fees_father, fees_other = split_by_payer(fees, "Ποσό")
+    mats_exp_me, mats_exp_father, mats_exp_other = split_by_payer(mats_exp, "Ποσό")
+    mats_sheet_me, mats_sheet_father, mats_sheet_other = split_by_payer(mats_sheet, "Σύνολο")
+
+    materials_me = mats_exp_me + mats_sheet_me
+    materials_father = mats_exp_father + mats_sheet_father
+    materials_other = mats_exp_other + mats_sheet_other
+    other_types_total = money_series(others_exp, "Ποσό").sum() if not others_exp.empty else 0.0
 
     return {
         "fees_me": fees_me,
         "fees_father": fees_father,
-        "materials_me": mats_me,
-        "materials_father": mats_father,
-        "total_me": fees_me + mats_me,
-        "total_father": fees_father + mats_father,
+        "fees_other": fees_other,
+        "materials_me": materials_me,
+        "materials_father": materials_father,
+        "materials_other": materials_other,
+        "other_types_total": other_types_total,
+        "total_me": fees_me + materials_me,
+        "total_father": fees_father + materials_father,
     }
 
 
@@ -569,7 +593,14 @@ def render_dashboard(df_exp, df_fee, df_material, df_task):
             st.write(f"- Αμοιβές: {format_currency(spend_breakdown['fees_father'])}")
             st.write(f"- Υλικά: {format_currency(spend_breakdown['materials_father'])}")
             st.write(f"- **Σύνολο: {format_currency(spend_breakdown['total_father'])}**")
-        st.caption("Η ανάλυση βασίζεται στον πληρωτή: Εγώ / Πατέρας, χωριστά για Αμοιβές και Υλικά.")
+        other_paid = spend_breakdown["fees_other"] + spend_breakdown["materials_other"]
+        known_total = spend_breakdown["total_me"] + spend_breakdown["total_father"] + other_paid + spend_breakdown["other_types_total"]
+        gap = to_money(total_spent) - to_money(known_total)
+        st.write(f"- Μη αντιστοιχισμένα σε Εγώ/Πατέρα (π.χ. Άλλο): {format_currency(other_paid)}")
+        st.write(f"- Άλλα είδη εξόδων (εκτός Αμοιβές/Υλικά): {format_currency(spend_breakdown['other_types_total'])}")
+        if abs(gap) > 0.01:
+            st.warning(f"Υπάρχει υπόλοιπο που δεν κατηγοριοποιείται: {format_currency(gap)}")
+        st.caption("Τα ποσά με πληρωτή 'Κοινό' μοιράζονται αυτόματα 50%-50% σε Εγώ και Πατέρα.")
 
     st.divider()
     st.subheader("💰 Αμοιβές Συνεργείων")
