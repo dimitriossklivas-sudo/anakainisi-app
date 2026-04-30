@@ -417,6 +417,26 @@ def calculate_material_split(df_material):
     return pd.DataFrame(summary)
 
 
+def calculate_total_spend_breakdown(df_exp, df_material):
+    fees = df_exp[df_exp["Είδος"] == "Αμοιβή"].copy() if not df_exp.empty else pd.DataFrame()
+    mats = df_material.copy() if not df_material.empty else pd.DataFrame()
+
+    fees_me = money_series(fees[fees["Πληρωτής"] == "Εγώ"], "Ποσό").sum() if not fees.empty else 0.0
+    fees_father = money_series(fees[fees["Πληρωτής"] == "Πατέρας"], "Ποσό").sum() if not fees.empty else 0.0
+
+    mats_me = money_series(mats[mats["Πληρωτής"] == "Εγώ"], "Σύνολο").sum() if not mats.empty else 0.0
+    mats_father = money_series(mats[mats["Πληρωτής"] == "Πατέρας"], "Σύνολο").sum() if not mats.empty else 0.0
+
+    return {
+        "fees_me": fees_me,
+        "fees_father": fees_father,
+        "materials_me": mats_me,
+        "materials_father": mats_father,
+        "total_me": fees_me + mats_me,
+        "total_father": fees_father + mats_father,
+    }
+
+
 def apply_expense_filters(df, filters):
     if df.empty:
         return df
@@ -526,12 +546,30 @@ def render_dashboard(df_exp, df_fee, df_material, df_task):
     total_expenses = money_series(df_exp, "Ποσό").sum()
     total_materials = money_series(df_material, "Σύνολο").sum()
     total_spent = total_expenses + total_materials
+    spend_breakdown = calculate_total_spend_breakdown(df_exp, df_material)
 
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Σύνολο Εξόδων", format_currency(total_spent))
+    with col1:
+        st.metric("Σύνολο Εξόδων", format_currency(total_spent))
+        if st.button("Ανάλυση συνεισφοράς", key="open_total_spend_breakdown"):
+            st.session_state["show_total_spend_breakdown"] = not st.session_state.get("show_total_spend_breakdown", False)
     col2.metric("Έξοδα (Expenses)", len(df_exp))
     col3.metric("Υλικά (Materials)", len(df_material))
     col4.metric("Εργασίες", len(df_task))
+
+    if st.session_state.get("show_total_spend_breakdown", False):
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("**👤 Εγώ**")
+            st.write(f"- Αμοιβές: {format_currency(spend_breakdown['fees_me'])}")
+            st.write(f"- Υλικά: {format_currency(spend_breakdown['materials_me'])}")
+            st.write(f"- **Σύνολο: {format_currency(spend_breakdown['total_me'])}**")
+        with c2:
+            st.markdown("**👤 Πατέρας**")
+            st.write(f"- Αμοιβές: {format_currency(spend_breakdown['fees_father'])}")
+            st.write(f"- Υλικά: {format_currency(spend_breakdown['materials_father'])}")
+            st.write(f"- **Σύνολο: {format_currency(spend_breakdown['total_father'])}**")
+        st.caption("Η ανάλυση βασίζεται στον πληρωτή: Εγώ / Πατέρας, χωριστά για Αμοιβές και Υλικά.")
 
     st.divider()
     st.subheader("💰 Αμοιβές Συνεργείων")
