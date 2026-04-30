@@ -613,7 +613,7 @@ def render_dashboard(df_exp, df_fee, df_material, df_task):
 
 def render_expenses(df):
     st.subheader("💰 Έξοδα")
-    current_df = st.session_state.get("expenses_local_df", df)
+    current_df = df.copy()
     search_local = st.text_input("Αναζήτηση στα έξοδα", key="search_expenses_local")
     display_df = current_df
     if search_local.strip():
@@ -646,7 +646,6 @@ def render_expenses(df):
                 with st.spinner("Αποθήκευση..."):
                     ok = safe_write(SHEET_EXPENSES, updated)
                 if ok:
-                    st.session_state["expenses_local_df"] = updated
                     st.toast("Αποθηκεύτηκε", icon="✅")
                     st.rerun()
 
@@ -655,13 +654,11 @@ def render_expenses(df):
     with col_a:
         if st.button("💾 Αποθήκευση αλλαγών", key="save_exp"):
             if safe_write(SHEET_EXPENSES, edited):
-                st.session_state["expenses_local_df"] = edited
                 st.success("Οι αλλαγές αποθηκεύτηκαν.")
                 st.rerun()
     with col_b:
         new_df, should_delete = delete_ui(edited, "Επέλεξε _id για διαγραφή", "del_exp")
         if should_delete and safe_write(SHEET_EXPENSES, new_df):
-            st.session_state["expenses_local_df"] = new_df
             st.success("Η εγγραφή διαγράφηκε.")
             st.rerun()
 
