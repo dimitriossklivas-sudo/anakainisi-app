@@ -2,7 +2,7 @@ import base64
 import io
 import time
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 import plotly.express as px
@@ -11,7 +11,7 @@ from PIL import Image
 from streamlit_gsheets import GSheetsConnection
 
 st.set_page_config(page_title="Methana Earth & Fire v2", layout="wide")
-APP_VERSION = "v2.2"
+APP_VERSION = "v2.3"
 APP_BUILDER = "ΣΚΛΙΒΑΣ Σ. ΔΗΜΗΤΡΙΟΣ"
 
 
@@ -26,7 +26,10 @@ def get_connection():
 conn = get_connection()
 
 
-def inject_v22_theme():
+# -----------------------------
+# Theme
+# -----------------------------
+def inject_v23_theme():
     st.markdown(
         f"""
         <style>
@@ -37,16 +40,24 @@ def inject_v22_theme():
             --aegean-blue: #2e6f95;
             --sea-foam: #cfe8e6;
             --lava-rust: #915f35;
+            --cream: #fbfaf8;
+            --soft-cream: #f3f0ea;
+            --ink: #202326;
+            --olive-sea: #3f7d6b;
         }}
+
         .stApp {{
             background: linear-gradient(180deg, #fbfaf8 0%, #f3f0ea 100%);
         }}
+
         section[data-testid="stSidebar"] {{
             background: linear-gradient(180deg, #1f2428 0%, #2f3437 100%);
         }}
+
         section[data-testid="stSidebar"] * {{
             color: #f3efe7 !important;
         }}
+
         div[data-testid="stMetric"] {{
             background: #ffffff;
             border: 1px solid rgba(47, 52, 55, 0.12);
@@ -54,25 +65,29 @@ def inject_v22_theme():
             padding: 10px 12px;
             box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
         }}
+
         .methana-hero {{
             border-radius: 16px;
             padding: 14px 18px;
-            margin-bottom: 10px;
+            margin-bottom: 14px;
             color: #ffffff;
             background:
                 linear-gradient(120deg, rgba(145,95,53,0.95) 0%, rgba(47,52,55,0.94) 45%, rgba(46,111,149,0.95) 100%);
             box-shadow: 0 10px 24px rgba(25, 25, 25, 0.15);
         }}
+
         .methana-hero .title {{
             font-size: 1.2rem;
             font-weight: 700;
             letter-spacing: 0.2px;
         }}
+
         .methana-hero .subtitle {{
             opacity: 0.92;
             font-size: 0.9rem;
             margin-top: 2px;
         }}
+
         .app-watermark {{
             position: fixed;
             bottom: 16px;
@@ -90,13 +105,93 @@ def inject_v22_theme():
             padding: 4px 10px;
             backdrop-filter: blur(2px);
         }}
+
+        .dashboard-section-title {{
+            font-size: 1.08rem;
+            font-weight: 800;
+            color: #1f2328;
+            margin-top: 10px;
+            margin-bottom: 8px;
+        }}
+
+        .dashboard-section-subtitle {{
+            font-size: 0.9rem;
+            color: #6a6763;
+            margin-bottom: 10px;
+        }}
+
+        .visual-card {{
+            background: #ffffff;
+            border: 1px solid rgba(47, 52, 55, 0.10);
+            border-radius: 16px;
+            padding: 14px 14px 12px 14px;
+            margin-bottom: 12px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+        }}
+
+        .visual-card-title {{
+            font-size: 1rem;
+            font-weight: 700;
+            color: #1f2328;
+            margin-bottom: 4px;
+        }}
+
+        .visual-card-subtitle {{
+            font-size: 0.86rem;
+            color: #6d6a67;
+            margin-bottom: 10px;
+        }}
+
+        .progress-row {{
+            margin-bottom: 10px;
+        }}
+
+        .progress-top {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.87rem;
+            color: #2a2d30;
+            margin-bottom: 4px;
+        }}
+
+        .progress-track {{
+            width: 100%;
+            height: 13px;
+            border-radius: 999px;
+            background: #e8dfd2;
+            overflow: hidden;
+        }}
+
+        .progress-fill {{
+            height: 100%;
+            border-radius: 999px;
+        }}
+
+        .fill-total {{ background: linear-gradient(90deg, #c9a96b 0%, #dcc18f 100%); }}
+        .fill-me {{ background: linear-gradient(90deg, #3f7d6b 0%, #63a593 100%); }}
+        .fill-father {{ background: linear-gradient(90deg, #915f35 0%, #ba8357 100%); }}
+        .fill-remain {{ background: linear-gradient(90deg, #7b3333 0%, #b55252 100%); }}
+
+        .group-chip {{
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            background: #efe5d7;
+            color: #5d4733;
+            margin-right: 6px;
+            margin-bottom: 6px;
+        }}
+
         .stApp [data-testid="stMetricLabel"] p,
         .stApp [data-testid="stMetricValue"] div,
         .stApp [data-testid="stMetricDelta"] div {{
             color: #1f2328 !important;
         }}
 
-        /* Dark mode contrast fixes */
         @media (prefers-color-scheme: dark) {{
             .stApp {{
                 background: linear-gradient(180deg, #111416 0%, #161b1f 100%) !important;
@@ -123,18 +218,15 @@ def inject_v22_theme():
             .stApp div[data-testid="stDataFrame"] * {{
                 color: #e9edf1 !important;
             }}
+            .visual-card {{
+                background: #1f2428 !important;
+                border: 1px solid rgba(233, 237, 241, 0.16) !important;
+            }}
             .app-watermark {{
                 color: rgba(233, 237, 241, 0.78) !important;
                 background: rgba(20, 24, 28, 0.52) !important;
                 border: 1px solid rgba(233, 237, 241, 0.2) !important;
             }}
-        }}
-
-        /* Streamlit explicit dark theme attribute fallback */
-        .stApp[data-theme="dark"] [data-testid="stMetricLabel"] p,
-        .stApp[data-theme="dark"] [data-testid="stMetricValue"] div,
-        .stApp[data-theme="dark"] [data-testid="stMetricDelta"] div {{
-            color: #f5f7fa !important;
         }}
         </style>
         <div class="app-watermark">Κατασκευαστής app: {APP_BUILDER}</div>
@@ -154,6 +246,10 @@ def render_brand_header():
         unsafe_allow_html=True,
     )
 
+
+# -----------------------------
+# Sheets
+# -----------------------------
 SHEET_EXPENSES = "Expenses"
 SHEET_FEES = "Fees"
 SHEET_CONTACTS = "Contacts"
@@ -175,7 +271,7 @@ SHEET_ALIASES = {
 }
 
 EXPENSE_COLUMNS = ["_id", "Ημερομηνία", "Κατηγορία", "Είδος", "Ποσό", "Πληρωτής", "Σημειώσεις"]
-FEE_COLUMNS = ["_id", "Κατηγορία", "Περιγραφή", "Ποσό", "Σημειώσεις"]
+FEE_COLUMNS = ["_id", "Κατηγορία", "Περιγραφή", "Συνολικό_Ποσό", "Συμμετοχή_Εγώ", "Συμμετοχή_Πατέρας", "Σημειώσεις"]
 CONTACT_COLUMNS = ["_id", "Όνομα", "Ρόλος", "Τηλέφωνο", "Email", "Περιοχή", "Σημειώσεις"]
 MATERIAL_COLUMNS = [
     "_id",
@@ -200,6 +296,15 @@ EXPENSE_TYPES = ["Αμοιβή", "Υλικά", "Άλλο"]
 PAYERS = ["Εγώ", "Πατέρας", "Κοινό", "Άλλο"]
 TASK_STATUSES = ["To Do", "Doing", "Done"]
 ROOMS = ["Κουζίνα", "Μπάνιο", "Σαλόνι", "Υπνοδωμάτιο", "Μπαλκόνι", "Διάδρομος", "Άλλο"]
+TASK_PRIORITIES = ["Χαμηλή", "Μεσαία", "Υψηλή"]
+OFFER_CATEGORIES = EXPENSE_CATEGORIES[:]
+CONTACT_ROLES = ["Υδραυλικός", "Ηλεκτρολόγος", "Πλακάς", "Ελαιοχρωματιστής", "Προμηθευτής", "Κατάστημα", "Άλλο"]
+MATERIAL_UNITS = ["τεμ", "μέτρα", "m2", "κιλά", "λίτρα", "σακιά", "κουτιά", "Άλλο"]
+MATERIAL_STATUS = ["Προς αγορά", "Παραγγέλθηκε", "Αγοράστηκε", "Παραδόθηκε"]
+IMAGE_TYPES = ["Before", "After", "Progress", "Material"]
+
+PLOTLY_TEMPLATE = "plotly_white"
+CHART_COLORS = ["#c9a96b", "#915f35", "#2e6f95", "#3f7d6b", "#6e5d52", "#d4af37"]
 
 
 # -----------------------------
@@ -234,29 +339,80 @@ def format_currency(value):
     return f"{to_money(value):,.2f} €"
 
 
-def safe_read(sheet_name, columns, ttl_seconds=60):
+def parse_date_safe(value, default=None):
+    parsed = pd.to_datetime(value, errors="coerce")
+    if pd.isna(parsed):
+        return default
+    return parsed
+
+
+def normalize_task_df(df):
+    local = df.copy()
+    for col in TASK_COLUMNS:
+        if col not in local.columns:
+            local[col] = ""
+    return local[TASK_COLUMNS]
+
+
+def normalize_fee_df(df):
+    local = df.copy()
+    if "Ποσό" not in local.columns:
+        local["Ποσό"] = ""
+    if "Συνολικό_Ποσό" not in local.columns:
+        local["Συνολικό_Ποσό"] = ""
+
+    local["Συνολικό_Ποσό"] = local.apply(
+        lambda r: to_money(r["Συνολικό_Ποσό"]) if to_money(r["Συνολικό_Ποσό"]) > 0 else to_money(r["Ποσό"]),
+        axis=1,
+    )
+
+    if "Συμμετοχή_Εγώ" not in local.columns:
+        local["Συμμετοχή_Εγώ"] = ""
+    if "Συμμετοχή_Πατέρας" not in local.columns:
+        local["Συμμετοχή_Πατέρας"] = ""
+
+    local["Συμμετοχή_Εγώ"] = local.apply(
+        lambda r: to_money(r["Συμμετοχή_Εγώ"]) if to_money(r["Συμμετοχή_Εγώ"]) > 0 else to_money(r["Συνολικό_Ποσό"]) / 2,
+        axis=1,
+    )
+    local["Συμμετοχή_Πατέρας"] = local.apply(
+        lambda r: to_money(r["Συμμετοχή_Πατέρας"]) if to_money(r["Συμμετοχή_Πατέρας"]) > 0 else to_money(r["Συνολικό_Ποσό"]) / 2,
+        axis=1,
+    )
+
+    for col in FEE_COLUMNS:
+        if col not in local.columns:
+            local[col] = ""
+    return local[FEE_COLUMNS]
+
+
+def safe_read(sheet_name, columns, ttl_seconds=60, optional_columns=None):
+    optional_columns = optional_columns or []
     candidates = [sheet_name] + SHEET_ALIASES.get(sheet_name, [])
     last_error = None
+
     for worksheet_name in candidates:
         try:
             df = conn.read(worksheet=worksheet_name, ttl=ttl_seconds)
             if df is None or df.empty:
                 return pd.DataFrame(columns=columns)
             df = df.dropna(how="all")
-            for col in columns:
+            all_columns = list(dict.fromkeys(columns + optional_columns))
+            for col in all_columns:
                 if col not in df.columns:
                     df[col] = ""
             if "_id" not in df.columns:
                 df["_id"] = ""
             df["_id"] = df["_id"].astype(str)
-            return df[columns]
+            return df[all_columns]
         except Exception as exc:
             last_error = exc
             if "404" in str(exc):
                 continue
             st.warning(f"Αδυναμία ανάγνωσης sheet '{worksheet_name}': {exc}")
             return pd.DataFrame(columns=columns)
-    st.warning(f"Αδυναμία ανάγνωσης sheet '{sheet_name}'. Ελέγξτε το όνομα worksheet. ({last_error})")
+
+    st.warning(f"Αδυναμία ανάγνωσης sheet '{sheet_name}'. Ελέγξτε το worksheet. ({last_error})")
     return pd.DataFrame(columns=columns)
 
 
@@ -264,6 +420,7 @@ def safe_write(sheet_name, df):
     retries = 4
     candidates = [sheet_name] + SHEET_ALIASES.get(sheet_name, [])
     last_error = None
+
     for worksheet_name in candidates:
         for attempt in range(retries):
             try:
@@ -273,20 +430,19 @@ def safe_write(sheet_name, df):
                 last_error = exc
                 message = str(exc)
                 is_rate_limited = "429" in message or "RATE_LIMIT_EXCEEDED" in message or "RESOURCE_EXHAUSTED" in message
-                is_transient_server = "500" in message or "INTERNAL" in message or "503" in message or "UNAVAILABLE" in message
+                is_transient_server = "500" in message or "503" in message or "UNAVAILABLE" in message or "INTERNAL" in message
                 is_not_found = "404" in message
+
                 if (is_rate_limited or is_transient_server) and attempt < retries - 1:
-                    wait_seconds = 0.4 * (attempt + 1)
-                    time.sleep(wait_seconds)
+                    time.sleep(0.4 * (attempt + 1))
                     continue
                 if is_not_found:
                     break
+
                 st.error(f"Σφάλμα εγγραφής στο '{worksheet_name}': {exc}")
                 return False
-    st.error(
-        f"Αποτυχία εγγραφής στο '{sheet_name}' μετά από επαναπροσπάθειες. "
-        f"Πιθανό προσωρινό πρόβλημα Google Sheets. ({last_error})"
-    )
+
+    st.error(f"Αποτυχία εγγραφής στο '{sheet_name}'. ({last_error})")
     return False
 
 
@@ -329,10 +485,8 @@ def show_table(df, hide_id=True):
 
 
 def editable_sheet(df, columns, key, num_cols=None):
-    if num_cols is None:
-        num_cols = []
-    df_local = ensure_ids(df)
-    st.caption("Επεξεργασία απευθείας στον πίνακα και πάτημα αποθήκευση.")
+    num_cols = num_cols or []
+    df_local = ensure_ids(df.copy())
     edited = st.data_editor(
         df_local,
         use_container_width=True,
@@ -352,146 +506,115 @@ def editable_sheet(df, columns, key, num_cols=None):
     return edited[columns]
 
 
-def render_progress_line(label, value, total, color):
-    pct = (to_money(value) / to_money(total) * 100) if to_money(total) > 0 else 0
+def clamp_pct(value, total):
+    total_val = to_money(total)
+    if total_val <= 0:
+        return 0
+    return max(0, min(100, (to_money(value) / total_val) * 100))
+
+
+def render_progress_line(label, value, total, color_class, right_text=None):
+    pct = clamp_pct(value, total)
+    right = right_text or f"{format_currency(value)} / {format_currency(total)}"
     st.markdown(
         f"""
-    <div style="margin-bottom: 8px;">
-        <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
-            <span>{label}</span>
-            <span>{format_currency(value)} / {format_currency(total)}</span>
+        <div class="progress-row">
+            <div class="progress-top">
+                <span>{label}</span>
+                <span>{right}</span>
+            </div>
+            <div class="progress-track">
+                <div class="progress-fill {color_class}" style="width: {pct:.2f}%;"></div>
+            </div>
         </div>
-        <div style="background: #e0d5c5; border-radius: 10px; height: 12px; overflow: hidden;">
-            <div style="background: {color}; width: {min(100, pct)}%; height: 100%; border-radius: 10px;"></div>
-        </div>
-    </div>
-    """,
+        """,
         unsafe_allow_html=True,
     )
 
 
-def calculate_fee_status(df_fee, df_exp):
-    if df_fee.empty:
-        return pd.DataFrame()
-    results = []
-    for _, fee in df_fee.iterrows():
-        cat = str(fee.get("Κατηγορία", "")).strip()
-        if not cat:
-            continue
-        total = to_money(fee.get("Ποσό", 0))
-        relevant = (
-            df_exp[(df_exp["Κατηγορία"] == cat) & (df_exp["Είδος"] == "Αμοιβή")]
-            if not df_exp.empty
-            else pd.DataFrame()
-        )
-        paid_me = money_series(relevant[relevant["Πληρωτής"] == "Εγώ"], "Ποσό").sum()
-        paid_father = money_series(relevant[relevant["Πληρωτής"] == "Πατέρας"], "Ποσό").sum()
-        results.append(
-            {
-                "Κατηγορία": cat,
-                "Συνολικό": total,
-                "Πλήρωσα Εγώ": paid_me,
-                "Πλήρωσε Πατέρας": paid_father,
-                "Περιγραφή": fee.get("Περιγραφή", f"Αμοιβή {cat}"),
-            }
-        )
-    return pd.DataFrame(results)
+def render_visual_card(title, subtitle, total_amount, paid_me, paid_father, target_me=None, target_father=None):
+    total_amount = to_money(total_amount)
+    paid_me = to_money(paid_me)
+    paid_father = to_money(paid_father)
+    total_paid = paid_me + paid_father
+    remaining = max(total_amount - total_paid, 0)
 
-
-def calculate_material_split(df_material):
-    if df_material.empty:
-        return pd.DataFrame()
-    local = df_material.copy()
-    local["Σύνολο"] = money_series(local, "Σύνολο")
-    summary = []
-    for cat in sorted(local["Κατηγορία"].dropna().unique()):
-        sub = local[local["Κατηγορία"] == cat]
-        summary.append(
-            {
-                "Κατηγορία": cat,
-                "Σύνολο": sub["Σύνολο"].sum(),
-                "Εγώ": sub[sub["Πληρωτής"] == "Εγώ"]["Σύνολο"].sum(),
-                "Πατέρας": sub[sub["Πληρωτής"] == "Πατέρας"]["Σύνολο"].sum(),
-            }
-        )
-    return pd.DataFrame(summary)
-
-
-def calculate_total_spend_breakdown(df_exp, df_material):
-    fees = df_exp[df_exp["Είδος"] == "Αμοιβή"].copy() if not df_exp.empty else pd.DataFrame()
-    mats_exp = df_exp[df_exp["Είδος"] == "Υλικά"].copy() if not df_exp.empty else pd.DataFrame()
-    mats_sheet = df_material.copy() if not df_material.empty else pd.DataFrame()
-    others_exp = (
-        df_exp[~df_exp["Είδος"].isin(["Αμοιβή", "Υλικά"])].copy()
-        if not df_exp.empty and "Είδος" in df_exp.columns
-        else pd.DataFrame()
+    st.markdown(
+        f"""
+        <div class="visual-card">
+            <div class="visual-card-title">{title}</div>
+            <div class="visual-card-subtitle">{subtitle}</div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    def split_by_payer(local_df, amount_col):
-        if local_df.empty:
-            return 0.0, 0.0, 0.0
-        me = money_series(local_df[local_df["Πληρωτής"] == "Εγώ"], amount_col).sum()
-        father = money_series(local_df[local_df["Πληρωτής"] == "Πατέρας"], amount_col).sum()
-        common = money_series(local_df[local_df["Πληρωτής"] == "Κοινό"], amount_col).sum()
-        other = money_series(
-            local_df[~local_df["Πληρωτής"].isin(["Εγώ", "Πατέρας", "Κοινό"])],
-            amount_col,
-        ).sum()
-        return me + (common / 2), father + (common / 2), other
+    render_progress_line(
+        "Σύνολο καλυμμένο",
+        total_paid,
+        total_amount,
+        "fill-total",
+        f"{format_currency(total_paid)} / {format_currency(total_amount)}",
+    )
 
-    fees_me, fees_father, fees_other = split_by_payer(fees, "Ποσό")
-    mats_exp_me, mats_exp_father, mats_exp_other = split_by_payer(mats_exp, "Ποσό")
-    mats_sheet_me, mats_sheet_father, mats_sheet_other = split_by_payer(mats_sheet, "Σύνολο")
+    if target_me is not None:
+        target_me = to_money(target_me)
+        remain_me = max(target_me - paid_me, 0)
+        render_progress_line(
+            "Εγώ",
+            paid_me,
+            target_me,
+            "fill-me",
+            f"{format_currency(paid_me)} από {format_currency(target_me)} | Υπόλοιπο {format_currency(remain_me)}",
+        )
+    else:
+        render_progress_line("Εγώ", paid_me, total_amount, "fill-me", format_currency(paid_me))
 
-    materials_me = mats_exp_me + mats_sheet_me
-    materials_father = mats_exp_father + mats_sheet_father
-    materials_other = mats_exp_other + mats_sheet_other
-    other_types_total = money_series(others_exp, "Ποσό").sum() if not others_exp.empty else 0.0
+    if target_father is not None:
+        target_father = to_money(target_father)
+        remain_father = max(target_father - paid_father, 0)
+        render_progress_line(
+            "Πατέρας",
+            paid_father,
+            target_father,
+            "fill-father",
+            f"{format_currency(paid_father)} από {format_currency(target_father)} | Υπόλοιπο {format_currency(remain_father)}",
+        )
+    else:
+        render_progress_line("Πατέρας", paid_father, total_amount, "fill-father", format_currency(paid_father))
 
-    return {
-        "fees_me": fees_me,
-        "fees_father": fees_father,
-        "fees_other": fees_other,
-        "materials_me": materials_me,
-        "materials_father": materials_father,
-        "materials_other": materials_other,
-        "other_types_total": other_types_total,
-        "total_me": fees_me + materials_me,
-        "total_father": fees_father + materials_father,
-    }
+    render_progress_line("Απομένει", remaining, total_amount, "fill-remain", format_currency(remaining))
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def apply_expense_filters(df, filters):
     if df.empty:
         return df
     local = df.copy()
-    if "Ποσό" in local.columns:
-        local["Ποσό"] = money_series(local, "Ποσό")
-    if filters.get("categories") and "Κατηγορία" in local.columns:
+    local["Ποσό"] = money_series(local, "Ποσό")
+
+    if filters.get("categories"):
         local = local[local["Κατηγορία"].isin(filters["categories"])]
-    if filters.get("payers") and "Πληρωτής" in local.columns:
+    if filters.get("payers"):
         local = local[local["Πληρωτής"].isin(filters["payers"])]
+
     if "Ημερομηνία" in local.columns:
-        dates = pd.to_datetime(local["Ημερομηνία"], errors="coerce")
+        parsed_dates = pd.to_datetime(local["Ημερομηνία"], errors="coerce")
         start = filters.get("start_date")
         end = filters.get("end_date")
         if start is not None:
-            local = local[dates >= pd.Timestamp(start)]
+            local = local[parsed_dates >= pd.Timestamp(start)]
         if end is not None:
-            local = local[dates <= pd.Timestamp(end)]
+            local = local[parsed_dates <= pd.Timestamp(end)]
+
     search = filters.get("search", "").strip().lower()
     if search:
-        cat_series = local["Κατηγορία"].astype(str) if "Κατηγορία" in local.columns else pd.Series("", index=local.index)
-        type_series = local["Είδος"].astype(str) if "Είδος" in local.columns else pd.Series("", index=local.index)
-        notes_series = local["Σημειώσεις"].astype(str) if "Σημειώσεις" in local.columns else pd.Series("", index=local.index)
-        combined = (
-            cat_series
-            + " "
-            + type_series
-            + " "
-            + notes_series
-        ).str.lower()
+        cat_series = local["Κατηγορία"].astype(str)
+        type_series = local["Είδος"].astype(str)
+        notes_series = local["Σημειώσεις"].astype(str)
+        payer_series = local["Πληρωτής"].astype(str)
+        combined = (cat_series + " " + type_series + " " + notes_series + " " + payer_series).str.lower()
         local = local[combined.str.contains(search, na=False)]
+
     return local
 
 
@@ -499,25 +622,21 @@ def apply_material_filters(df, filters):
     if df.empty:
         return df
     local = df.copy()
-    if "Σύνολο" in local.columns:
-        local["Σύνολο"] = money_series(local, "Σύνολο")
-    if filters.get("categories") and "Κατηγορία" in local.columns:
+    local["Σύνολο"] = money_series(local, "Σύνολο")
+
+    if filters.get("categories"):
         local = local[local["Κατηγορία"].isin(filters["categories"])]
     if filters.get("payers") and "Πληρωτής" in local.columns:
         local = local[local["Πληρωτής"].isin(filters["payers"])]
+
     search = filters.get("search", "").strip().lower()
     if search:
-        material_series = local["Υλικό"].astype(str) if "Υλικό" in local.columns else pd.Series("", index=local.index)
-        supplier_series = local["Προμηθευτής"].astype(str) if "Προμηθευτής" in local.columns else pd.Series("", index=local.index)
-        notes_series = local["Σημειώσεις"].astype(str) if "Σημειώσεις" in local.columns else pd.Series("", index=local.index)
-        combined = (
-            material_series
-            + " "
-            + supplier_series
-            + " "
-            + notes_series
-        ).str.lower()
+        material_series = local["Υλικό"].astype(str)
+        supplier_series = local["Προμηθευτής"].astype(str)
+        notes_series = local["Σημειώσεις"].astype(str)
+        combined = (material_series + " " + supplier_series + " " + notes_series).str.lower()
         local = local[combined.str.contains(search, na=False)]
+
     return local
 
 
@@ -533,53 +652,203 @@ def build_excel_bytes(dataframes_by_sheet):
     return buffer.getvalue()
 
 
+def calculate_fee_status(df_fee, df_exp):
+    if df_fee.empty:
+        return pd.DataFrame()
+
+    local_fee = normalize_fee_df(df_fee)
+    local_exp = df_exp.copy()
+    if not local_exp.empty:
+        local_exp["Ποσό"] = money_series(local_exp, "Ποσό")
+
+    results = []
+    for _, fee in local_fee.iterrows():
+        cat = str(fee.get("Κατηγορία", "")).strip()
+        if not cat:
+            continue
+
+        total = to_money(fee.get("Συνολικό_Ποσό", 0))
+        share_me = to_money(fee.get("Συμμετοχή_Εγώ", 0))
+        share_father = to_money(fee.get("Συμμετοχή_Πατέρας", 0))
+
+        relevant = (
+            local_exp[(local_exp["Κατηγορία"] == cat) & (local_exp["Είδος"] == "Αμοιβή")]
+            if not local_exp.empty
+            else pd.DataFrame()
+        )
+
+        paid_me = money_series(relevant[relevant["Πληρωτής"] == "Εγώ"], "Ποσό").sum()
+        paid_father = money_series(relevant[relevant["Πληρωτής"] == "Πατέρας"], "Ποσό").sum()
+
+        results.append(
+            {
+                "_id": fee.get("_id", ""),
+                "Κατηγορία": cat,
+                "Περιγραφή": fee.get("Περιγραφή", f"Αμοιβή {cat}"),
+                "Συνολικό_Ποσό": total,
+                "Συμμετοχή_Εγώ": share_me,
+                "Συμμετοχή_Πατέρας": share_father,
+                "Πλήρωσα Εγώ": paid_me,
+                "Πλήρωσε Πατέρας": paid_father,
+                "Υπόλοιπο Εγώ": max(share_me - paid_me, 0),
+                "Υπόλοιπο Πατέρας": max(share_father - paid_father, 0),
+                "Σημειώσεις": fee.get("Σημειώσεις", ""),
+            }
+        )
+    return pd.DataFrame(results)
+
+
+def calculate_material_split(df_material):
+    if df_material.empty:
+        return pd.DataFrame()
+
+    local = df_material.copy()
+    local["Σύνολο"] = money_series(local, "Σύνολο")
+    summary = []
+
+    for cat in sorted(local["Κατηγορία"].dropna().astype(str).unique()):
+        sub = local[local["Κατηγορία"] == cat]
+        summary.append(
+            {
+                "Κατηγορία": cat,
+                "Σύνολο": sub["Σύνολο"].sum(),
+                "Εγώ": sub[sub["Πληρωτής"] == "Εγώ"]["Σύνολο"].sum(),
+                "Πατέρας": sub[sub["Πληρωτής"] == "Πατέρας"]["Σύνολο"].sum(),
+                "Κοινό": sub[sub["Πληρωτής"] == "Κοινό"]["Σύνολο"].sum(),
+            }
+        )
+    return pd.DataFrame(summary)
+
+
+def calculate_total_spend_breakdown(df_exp):
+    local = df_exp.copy()
+    if local.empty:
+        return {
+            "fees_me": 0.0,
+            "fees_father": 0.0,
+            "fees_other": 0.0,
+            "materials_me": 0.0,
+            "materials_father": 0.0,
+            "materials_other": 0.0,
+            "other_types_total": 0.0,
+            "total_me": 0.0,
+            "total_father": 0.0,
+        }
+
+    local["Ποσό"] = money_series(local, "Ποσό")
+
+    fees = local[local["Είδος"] == "Αμοιβή"].copy()
+    mats = local[local["Είδος"] == "Υλικά"].copy()
+    others = local[~local["Είδος"].isin(["Αμοιβή", "Υλικά"])].copy()
+
+    def split_by_payer(local_df):
+        if local_df.empty:
+            return 0.0, 0.0, 0.0
+        me = local_df[local_df["Πληρωτής"] == "Εγώ"]["Ποσό"].sum()
+        father = local_df[local_df["Πληρωτής"] == "Πατέρας"]["Ποσό"].sum()
+        common = local_df[local_df["Πληρωτής"] == "Κοινό"]["Ποσό"].sum()
+        other = local_df[~local_df["Πληρωτής"].isin(["Εγώ", "Πατέρας", "Κοινό"])]["Ποσό"].sum()
+        return me + common / 2, father + common / 2, other
+
+    fees_me, fees_father, fees_other = split_by_payer(fees)
+    mats_me, mats_father, mats_other = split_by_payer(mats)
+    other_total = others["Ποσό"].sum() if not others.empty else 0.0
+
+    return {
+        "fees_me": fees_me,
+        "fees_father": fees_father,
+        "fees_other": fees_other,
+        "materials_me": mats_me,
+        "materials_father": mats_father,
+        "materials_other": mats_other,
+        "other_types_total": other_total,
+        "total_me": fees_me + mats_me,
+        "total_father": fees_father + mats_father,
+    }
+
+
 def prepare_timeline(df_tasks):
     if df_tasks.empty:
         return pd.DataFrame()
+    local = normalize_task_df(df_tasks)
     rows = []
-    for _, row in df_tasks.iterrows():
+
+    for _, row in local.iterrows():
         name = str(row.get("Εργασία", "")).strip()
         if not name:
             continue
-        start = pd.to_datetime(row.get("Ημερομηνία_Έναρξης", date.today()), errors="coerce")
-        end = pd.to_datetime(row.get("Ημερομηνία_Λήξης", date.today() + timedelta(days=1)), errors="coerce")
+
+        start = parse_date_safe(row.get("Ημερομηνία_Έναρξης"), pd.Timestamp(date.today()))
+        end = parse_date_safe(row.get("Ημερομηνία_Λήξης"), pd.Timestamp(date.today() + timedelta(days=1)))
+
         if pd.isna(start):
             start = pd.Timestamp(date.today())
         if pd.isna(end) or end < start:
             end = start + pd.Timedelta(days=1)
-        rows.append({"Task": name, "Start": start, "End": end, "Status": row.get("Κατάσταση", "To Do")})
+
+        rows.append(
+            {
+                "Task": name,
+                "Start": start,
+                "End": end,
+                "Status": row.get("Κατάσταση", "To Do"),
+                "Room": row.get("Χώρος", ""),
+                "Assignee": row.get("Ανάθεση", ""),
+                "Priority": row.get("Προτεραιότητα", ""),
+            }
+        )
     return pd.DataFrame(rows)
 
 
-def delete_ui(df, label, key):
+def delete_ui_from_labels(df, label_builder, label_key, button_key, title):
     if df.empty:
+        st.info(f"Δεν υπάρχουν εγγραφές για {title.lower()}.")
         return df, False
-    ids = df["_id"].astype(str).tolist()
-    chosen = st.selectbox(label, ids, key=key)
-    if st.button("🗑️ Διαγραφή", key=f"{key}_btn"):
-        return delete_by_id(df, chosen), True
+
+    labels = {}
+    for _, row in df.iterrows():
+        row_id = str(row.get("_id", ""))
+        labels[row_id] = label_builder(row)
+
+    selected_id = st.selectbox(title, list(labels.keys()), format_func=lambda x: labels.get(x, x), key=label_key)
+    if st.button("🗑️ Διαγραφή", key=button_key):
+        return delete_by_id(df, selected_id), True
     return df, False
+
+
+# -----------------------------
+# Load Data
+# -----------------------------
+df_expenses = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
+df_fees = normalize_fee_df(safe_read(SHEET_FEES, FEE_COLUMNS, optional_columns=["Ποσό"]))
+df_contacts = safe_read(SHEET_CONTACTS, CONTACT_COLUMNS)
+df_materials = safe_read(SHEET_MATERIALS, MATERIAL_COLUMNS)
+df_loans = safe_read(SHEET_LOANS, LOAN_COLUMNS)
+df_tasks = normalize_task_df(safe_read(SHEET_TASKS, TASK_COLUMNS))
+df_offers = safe_read(SHEET_OFFERS, OFFER_COLUMNS)
+df_gallery = safe_read(SHEET_GALLERY, GALLERY_COLUMNS)
 
 
 # -----------------------------
 # Pages
 # -----------------------------
 def render_dashboard(df_exp, df_fee, df_material, df_task):
-    st.title("🏠 Dashboard Ανακαίνισης v2")
+    st.title("🏠 Dashboard Ανακαίνισης")
 
-    total_expenses = money_series(df_exp, "Ποσό").sum()
-    total_materials = money_series(df_material, "Σύνολο").sum()
-    total_spent = total_expenses + total_materials
-    spend_breakdown = calculate_total_spend_breakdown(df_exp, df_material)
+    total_actual_paid = money_series(df_exp, "Ποσό").sum()
+    total_material_register = money_series(df_material, "Σύνολο").sum()
+    fee_status = calculate_fee_status(df_fee, df_exp)
+    material_status = calculate_material_split(df_material)
+    spend_breakdown = calculate_total_spend_breakdown(df_exp)
 
     col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Σύνολο Εξόδων", format_currency(total_spent))
-        if st.button("Ανάλυση συνεισφοράς", key="open_total_spend_breakdown"):
-            st.session_state["show_total_spend_breakdown"] = not st.session_state.get("show_total_spend_breakdown", False)
-    col2.metric("Έξοδα (Expenses)", len(df_exp))
-    col3.metric("Υλικά (Materials)", len(df_material))
-    col4.metric("Εργασίες", len(df_task))
+    col1.metric("Σύνολο πραγματικών πληρωμών", format_currency(total_actual_paid))
+    col2.metric("Σύνολο καταχωρήσεων εξόδων", len(df_exp))
+    col3.metric("Σύνολο καταχωρήσεων υλικών", len(df_material))
+    col4.metric("Εργασίες planning", len(df_task))
+
+    if st.button("Ανάλυση συνεισφοράς", key="open_total_spend_breakdown"):
+        st.session_state["show_total_spend_breakdown"] = not st.session_state.get("show_total_spend_breakdown", False)
 
     if st.session_state.get("show_total_spend_breakdown", False):
         c1, c2 = st.columns(2)
@@ -593,66 +862,103 @@ def render_dashboard(df_exp, df_fee, df_material, df_task):
             st.write(f"- Αμοιβές: {format_currency(spend_breakdown['fees_father'])}")
             st.write(f"- Υλικά: {format_currency(spend_breakdown['materials_father'])}")
             st.write(f"- **Σύνολο: {format_currency(spend_breakdown['total_father'])}**")
+
         other_paid = spend_breakdown["fees_other"] + spend_breakdown["materials_other"]
-        known_total = spend_breakdown["total_me"] + spend_breakdown["total_father"] + other_paid + spend_breakdown["other_types_total"]
-        gap = to_money(total_spent) - to_money(known_total)
-        st.write(f"- Μη αντιστοιχισμένα σε Εγώ/Πατέρα (π.χ. Άλλο): {format_currency(other_paid)}")
-        st.write(f"- Άλλα είδη εξόδων (εκτός Αμοιβές/Υλικά): {format_currency(spend_breakdown['other_types_total'])}")
-        if abs(gap) > 0.01:
-            st.warning(f"Υπάρχει υπόλοιπο που δεν κατηγοριοποιείται: {format_currency(gap)}")
-        st.caption("Τα ποσά με πληρωτή 'Κοινό' μοιράζονται αυτόματα 50%-50% σε Εγώ και Πατέρα.")
+        st.write(f"- Μη αντιστοιχισμένα σε Εγώ/Πατέρα: {format_currency(other_paid)}")
+        st.write(f"- Άλλα είδη εξόδων: {format_currency(spend_breakdown['other_types_total'])}")
+        st.caption("Ο πληρωτής 'Κοινό' μοιράζεται 50%-50% σε Εγώ και Πατέρα.")
 
-    st.divider()
-    st.subheader("💰 Αμοιβές Συνεργείων")
+    st.markdown('<div class="dashboard-section-title">Κάρτα αμοιβών συνεργείων</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="dashboard-section-subtitle">Μία κάρτα ανά κατηγορία με σύνολο καλυμμένο, Εγώ, Πατέρας και υπόλοιπο.</div>',
+        unsafe_allow_html=True,
+    )
 
-    fees = calculate_fee_status(df_fee, df_exp)
-    if fees.empty:
-        st.info("Δεν υπάρχουν αμοιβές")
+    if fee_status.empty:
+        st.info("Δεν υπάρχουν αμοιβές.")
     else:
-        cols = st.columns(2)
-        for i, (_, row) in enumerate(fees.iterrows()):
-            with cols[i % 2]:
-                st.markdown(f"**👷 {row['Κατηγορία']}**")
-                st.caption(row["Περιγραφή"])
-                per_person_target = to_money(row["Συνολικό"]) / 2
-                render_progress_line("Σύνολο", row["Πλήρωσα Εγώ"] + row["Πλήρωσε Πατέρας"], row["Συνολικό"], "#c9a96b")
-                render_progress_line("Εγώ", row["Πλήρωσα Εγώ"], per_person_target, "#3f7d6b")
-                render_progress_line("Πατέρας", row["Πλήρωσε Πατέρας"], per_person_target, "#915f35")
-                st.divider()
+        fee_cols = st.columns(2)
+        for i, (_, row) in enumerate(fee_status.iterrows()):
+            with fee_cols[i % 2]:
+                render_visual_card(
+                    f"Κάρτα {row['Κατηγορία']}",
+                    row["Περιγραφή"],
+                    row["Συνολικό_Ποσό"],
+                    row["Πλήρωσα Εγώ"],
+                    row["Πλήρωσε Πατέρας"],
+                    row["Συμμετοχή_Εγώ"],
+                    row["Συμμετοχή_Πατέρας"],
+                )
 
-    st.subheader("📦 Υλικά")
-    materials = calculate_material_split(df_material)
-    if materials.empty:
-        st.info("Δεν υπάρχουν υλικά")
+    st.markdown('<div class="dashboard-section-title">Κάρτα υλικών</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="dashboard-section-subtitle">Μία κάρτα ανά κατηγορία από το Materials sheet, όπως στο σκίτσο σου.</div>',
+        unsafe_allow_html=True,
+    )
+
+    if material_status.empty:
+        st.info("Δεν υπάρχουν υλικά.")
     else:
-        cols = st.columns(2)
-        for i, (_, row) in enumerate(materials.iterrows()):
-            with cols[i % 2]:
-                st.markdown(f"**🔨 {row['Κατηγορία']}**")
-                render_progress_line("Σύνολο", row["Εγώ"] + row["Πατέρας"], row["Σύνολο"], "#c9a96b")
-                render_progress_line("Εγώ", row["Εγώ"], row["Σύνολο"], "#3f7d6b")
-                render_progress_line("Πατέρας", row["Πατέρας"], row["Σύνολο"], "#915f35")
-                st.divider()
+        mat_cols = st.columns(2)
+        for i, (_, row) in enumerate(material_status.iterrows()):
+            with mat_cols[i % 2]:
+                render_visual_card(
+                    f"Κάρτα {row['Κατηγορία']}",
+                    "Σύνολο αγορών υλικών",
+                    row["Σύνολο"],
+                    row["Εγώ"] + row["Κοινό"] / 2,
+                    row["Πατέρας"] + row["Κοινό"] / 2,
+                )
 
-    st.subheader("🗓️ Χρονοδιάγραμμα")
+    st.markdown('<div class="dashboard-section-title">🗓️ Timeline / Gantt</div>', unsafe_allow_html=True)
     timeline = prepare_timeline(df_task)
-    if not timeline.empty:
-        fig = px.timeline(timeline, x_start="Start", x_end="End", y="Task", color="Status")
-        fig.update_layout(height=400)
+    if timeline.empty:
+        st.info("Δεν υπάρχουν εργασίες στο planning.")
+    else:
+        fig = px.timeline(
+            timeline,
+            x_start="Start",
+            x_end="End",
+            y="Task",
+            color="Status",
+            hover_data=["Room", "Assignee", "Priority"],
+            color_discrete_map={
+                "To Do": "#c9a96b",
+                "Doing": "#2e6f95",
+                "Done": "#3f7d6b",
+            },
+        )
+        fig.update_layout(height=430)
+        fig.update_yaxes(autorange="reversed")
         st.plotly_chart(fig, use_container_width=True)
 
 
 def render_expenses(df):
     st.subheader("💰 Έξοδα")
-    current_df = df.copy()
-    search_local = st.text_input("Αναζήτηση στα έξοδα", key="search_expenses_local")
-    display_df = current_df
-    if search_local.strip():
-        display_df = apply_expense_filters(
-            current_df,
-            {"categories": [], "payers": [], "start_date": None, "end_date": None, "search": search_local},
+
+    raw_df = df.copy()
+    filtered_df = raw_df.copy()
+
+    c1, c2, c3, c4 = st.columns(4)
+    search_local = c1.text_input("Αναζήτηση", key="search_expenses_local")
+    selected_categories = c2.multiselect("Κατηγορίες", EXPENSE_CATEGORIES, key="filter_exp_cat")
+    selected_payers = c3.multiselect("Πληρωτής", PAYERS, key="filter_exp_payer")
+    selected_type = c4.selectbox("Είδος", ["Όλα"] + EXPENSE_TYPES, key="filter_exp_type")
+
+    if search_local.strip() or selected_categories or selected_payers:
+        filtered_df = apply_expense_filters(
+            raw_df,
+            {
+                "categories": selected_categories,
+                "payers": selected_payers,
+                "start_date": None,
+                "end_date": None,
+                "search": search_local,
+            },
         )
-        show_table(display_df)
+    if selected_type != "Όλα" and not filtered_df.empty:
+        filtered_df = filtered_df[filtered_df["Είδος"] == selected_type]
+
     with st.expander("➕ Νέο έξοδο"):
         with st.form("expense_form"):
             col1, col2 = st.columns(2)
@@ -673,57 +979,131 @@ def render_expenses(df):
                     "Πληρωτής": payer,
                     "Σημειώσεις": notes,
                 }
-                updated = append_row(current_df, new, EXPENSE_COLUMNS)
+                updated = append_row(raw_df, new, EXPENSE_COLUMNS)
                 with st.spinner("Αποθήκευση..."):
                     ok = safe_write(SHEET_EXPENSES, updated)
                 if ok:
                     st.toast("Αποθηκεύτηκε", icon="✅")
                     st.rerun()
 
-    edited = editable_sheet(current_df, EXPENSE_COLUMNS, "expenses_editor", num_cols=["Ποσό"])
-    col_a, col_b = st.columns(2)
-    with col_a:
+    st.markdown("### Ομαδοποίηση εξόδων")
+    if not filtered_df.empty:
+        group_view = filtered_df.copy()
+        group_view["Ποσό"] = money_series(group_view, "Ποσό")
+        grouped = (
+            group_view.groupby(["Κατηγορία", "Είδος", "Πληρωτής"], as_index=False)["Ποσό"]
+            .sum()
+            .sort_values(["Κατηγορία", "Είδος", "Πληρωτής"])
+        )
+        st.dataframe(grouped, use_container_width=True)
+    else:
+        st.info("Δεν υπάρχουν εγγραφές για το τρέχον φίλτρο.")
+
+    tabs = st.tabs(["Αναλυτικά", "Επεξεργασία", "Διαγραφή"])
+
+    with tabs[0]:
+        show_table(filtered_df)
+
+    with tabs[1]:
+        edited = editable_sheet(raw_df, EXPENSE_COLUMNS, "expenses_editor", num_cols=["Ποσό"])
         if st.button("💾 Αποθήκευση αλλαγών", key="save_exp"):
             if safe_write(SHEET_EXPENSES, edited):
                 st.success("Οι αλλαγές αποθηκεύτηκαν.")
                 st.rerun()
-    with col_b:
-        new_df, should_delete = delete_ui(edited, "Επέλεξε _id για διαγραφή", "del_exp")
-        if should_delete and safe_write(SHEET_EXPENSES, new_df):
-            st.success("Η εγγραφή διαγράφηκε.")
-            st.rerun()
+
+    with tabs[2]:
+        delete_source = filtered_df if not filtered_df.empty else raw_df
+        new_df, should_delete = delete_ui_from_labels(
+            delete_source,
+            lambda row: f"{row.get('Ημερομηνία', '')} | {row.get('Κατηγορία', '')} | {row.get('Είδος', '')} | {format_currency(row.get('Ποσό', 0))} | {row.get('Πληρωτής', '')}",
+            "del_exp_label",
+            "del_exp_btn",
+            "Επέλεξε καταχώρηση εξόδων",
+        )
+        if should_delete:
+            full_new_df = delete_by_id(raw_df, new_df["_id"].astype(str).tolist()[0]) if len(new_df) == len(delete_source) - 1 and not delete_source.empty else delete_by_id(raw_df, st.session_state.get("del_exp_label"))
+            # ασφαλής επαναϋπολογισμός από το selected id
+            selected_id = st.session_state.get("del_exp_label")
+            if selected_id:
+                full_new_df = delete_by_id(raw_df, selected_id)
+                if safe_write(SHEET_EXPENSES, full_new_df):
+                    st.success("Η εγγραφή διαγράφηκε.")
+                    st.rerun()
 
 
-def render_fees(df):
+def render_fees(df_fee, df_exp):
     st.subheader("💼 Αμοιβές")
+    raw_df = normalize_fee_df(df_fee.copy())
+
     with st.expander("➕ Νέα αμοιβή"):
         with st.form("fee_form"):
             col1, col2 = st.columns(2)
             with col1:
                 cat = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES)
-                amount = st.number_input("Ποσό (€)", min_value=0.0, step=100.0)
+                total_amount = st.number_input("Συνολικό ποσό (€)", min_value=0.0, step=100.0)
             with col2:
-                desc = st.text_input("Περιγραφή")
-                notes = st.text_input("Σημειώσεις")
+                share_me = st.number_input("Συμμετοχή Εγώ (€)", min_value=0.0, step=50.0)
+                share_father = st.number_input("Συμμετοχή Πατέρας (€)", min_value=0.0, step=50.0)
+            desc = st.text_input("Περιγραφή")
+            notes = st.text_input("Σημειώσεις")
+
             if st.form_submit_button("Αποθήκευση"):
-                new = {"Κατηγορία": cat, "Περιγραφή": desc, "Ποσό": amount, "Σημειώσεις": notes}
-                updated = append_row(df, new, FEE_COLUMNS)
+                if share_me == 0 and share_father == 0 and total_amount > 0:
+                    share_me = total_amount / 2
+                    share_father = total_amount / 2
+
+                new = {
+                    "Κατηγορία": cat,
+                    "Περιγραφή": desc,
+                    "Συνολικό_Ποσό": total_amount,
+                    "Συμμετοχή_Εγώ": share_me,
+                    "Συμμετοχή_Πατέρας": share_father,
+                    "Σημειώσεις": notes,
+                }
+                updated = append_row(raw_df, new, FEE_COLUMNS)
                 if safe_write(SHEET_FEES, updated):
                     st.success("Αποθηκεύτηκε")
                     st.rerun()
-    show_table(df)
+
+    status = calculate_fee_status(raw_df, df_exp)
+    if status.empty:
+        st.info("Δεν υπάρχουν αμοιβές.")
+        return
+
+    show_table(status.drop(columns=["_id"], errors="ignore"))
+
+    st.markdown("### Visual κάρτες αμοιβών")
+    cols = st.columns(2)
+    for i, (_, row) in enumerate(status.iterrows()):
+        with cols[i % 2]:
+            render_visual_card(
+                f"Κάρτα {row['Κατηγορία']}",
+                row["Περιγραφή"],
+                row["Συνολικό_Ποσό"],
+                row["Πλήρωσα Εγώ"],
+                row["Πλήρωσε Πατέρας"],
+                row["Συμμετοχή_Εγώ"],
+                row["Συμμετοχή_Πατέρας"],
+            )
 
 
 def render_materials(df):
     st.subheader("📦 Υλικά")
-    search_local = st.text_input("Αναζήτηση στα υλικά", key="search_materials_local")
-    base_df = df
-    if search_local.strip():
-        base_df = apply_material_filters(
-            df,
-            {"categories": [], "payers": [], "start_date": None, "end_date": None, "search": search_local},
+
+    raw_df = df.copy()
+    filtered_df = raw_df.copy()
+
+    c1, c2, c3 = st.columns(3)
+    search_local = c1.text_input("Αναζήτηση υλικών", key="search_materials_local")
+    selected_categories = c2.multiselect("Κατηγορίες υλικών", EXPENSE_CATEGORIES, key="filter_mat_cat")
+    selected_payers = c3.multiselect("Πληρωτής υλικών", PAYERS, key="filter_mat_payer")
+
+    if search_local.strip() or selected_categories or selected_payers:
+        filtered_df = apply_material_filters(
+            raw_df,
+            {"categories": selected_categories, "payers": selected_payers, "search": search_local},
         )
-        show_table(base_df)
+
     with st.expander("➕ Νέο υλικό"):
         with st.form("material_form"):
             col1, col2 = st.columns(2)
@@ -733,12 +1113,14 @@ def render_materials(df):
                 qty = st.number_input("Ποσότητα", min_value=0.0, step=1.0)
                 payer = st.selectbox("Πληρωτής", PAYERS)
             with col2:
-                unit = st.selectbox("Μονάδα", ["τεμ", "μέτρα", "m2", "κιλά"])
+                unit = st.selectbox("Μονάδα", MATERIAL_UNITS)
                 price = st.number_input("Τιμή μονάδας (€)", min_value=0.0, step=0.5)
                 supplier = st.text_input("Προμηθευτής")
-                notes = st.text_input("Σημειώσεις")
+                status = st.selectbox("Κατάσταση", MATERIAL_STATUS)
+            notes = st.text_input("Σημειώσεις")
             total = qty * price
             st.caption(f"Σύνολο: {format_currency(total)}")
+
             if st.form_submit_button("Αποθήκευση") and name:
                 new = {
                     "Κατηγορία": cat,
@@ -749,45 +1131,48 @@ def render_materials(df):
                     "Σύνολο": total,
                     "Πληρωτής": payer,
                     "Προμηθευτής": supplier,
-                    "Κατάσταση": "Προς αγορά",
+                    "Κατάσταση": status,
                     "Σημειώσεις": notes,
                 }
-                updated = append_row(df, new, MATERIAL_COLUMNS)
+                updated = append_row(raw_df, new, MATERIAL_COLUMNS)
                 if safe_write(SHEET_MATERIALS, updated):
                     st.success("Αποθηκεύτηκε")
                     st.rerun()
 
-    edited = editable_sheet(df, MATERIAL_COLUMNS, "materials_editor", num_cols=["Ποσότητα", "Τιμή_Μονάδας", "Σύνολο"])
-    edited["Σύνολο"] = edited["Ποσότητα"].apply(to_money) * edited["Τιμή_Μονάδας"].apply(to_money)
+    tabs = st.tabs(["Αναλυτικά", "Ομαδοποιημένα", "Επεξεργασία", "Διαγραφή"])
 
-    col_a, col_b = st.columns(2)
-    with col_a:
+    with tabs[0]:
+        show_table(filtered_df)
+
+    with tabs[1]:
+        if not filtered_df.empty:
+            grouped = calculate_material_split(filtered_df)
+            st.dataframe(grouped, use_container_width=True)
+        else:
+            st.info("Δεν υπάρχουν εγγραφές για το τρέχον φίλτρο.")
+
+    with tabs[2]:
+        edited = editable_sheet(raw_df, MATERIAL_COLUMNS, "materials_editor", num_cols=["Ποσότητα", "Τιμή_Μονάδας", "Σύνολο"])
+        edited["Σύνολο"] = edited["Ποσότητα"].apply(to_money) * edited["Τιμή_Μονάδας"].apply(to_money)
         if st.button("💾 Αποθήκευση αλλαγών", key="save_mat"):
             if safe_write(SHEET_MATERIALS, edited):
                 st.success("Οι αλλαγές αποθηκεύτηκαν.")
                 st.rerun()
-    with col_b:
-        if not edited.empty:
-            st.caption("Γρήγορη διαγραφή υλικού")
-            material_options = []
-            for _, row in edited.iterrows():
-                row_id = str(row.get("_id", ""))
-                label = (
-                    f"{row.get('Υλικό', '-')}"
-                    f" | {row.get('Κατηγορία', '-')}"
-                    f" | {format_currency(row.get('Σύνολο', 0))}"
-                    f" | id:{row_id}"
-                )
-                material_options.append((row_id, label))
-            selected_label = st.selectbox(
-                "Επίλεξε εγγραφή",
-                [opt[1] for opt in material_options],
-                key="del_mat_label",
-            )
-            selected_id = next((row_id for row_id, label in material_options if label == selected_label), None)
-            if st.button("🗑️ Διαγραφή υλικού", key="del_mat_btn") and selected_id:
-                new_df = delete_by_id(edited, selected_id)
-                if safe_write(SHEET_MATERIALS, new_df):
+
+    with tabs[3]:
+        delete_source = filtered_df if not filtered_df.empty else raw_df
+        new_df, should_delete = delete_ui_from_labels(
+            delete_source,
+            lambda row: f"{row.get('Υλικό', '')} | {row.get('Κατηγορία', '')} | {format_currency(row.get('Σύνολο', 0))}",
+            "del_mat_label",
+            "del_mat_btn",
+            "Επέλεξε υλικό",
+        )
+        if should_delete:
+            selected_id = st.session_state.get("del_mat_label")
+            if selected_id:
+                full_new_df = delete_by_id(raw_df, selected_id)
+                if safe_write(SHEET_MATERIALS, full_new_df):
                     st.success("Η εγγραφή διαγράφηκε.")
                     st.rerun()
 
@@ -799,13 +1184,21 @@ def render_contacts(df):
             col1, col2 = st.columns(2)
             with col1:
                 name = st.text_input("Όνομα")
-                role = st.selectbox("Ρόλος", ["Υδραυλικός", "Ηλεκτρολόγος", "Πλακάς", "Προμηθευτής"])
+                role = st.selectbox("Ρόλος", CONTACT_ROLES)
             with col2:
                 phone = st.text_input("Τηλέφωνο")
                 email = st.text_input("Email")
+            area = st.text_input("Περιοχή")
             notes = st.text_input("Σημειώσεις")
             if st.form_submit_button("Αποθήκευση") and name:
-                new = {"Όνομα": name, "Ρόλος": role, "Τηλέφωνο": phone, "Email": email, "Περιοχή": "", "Σημειώσεις": notes}
+                new = {
+                    "Όνομα": name,
+                    "Ρόλος": role,
+                    "Τηλέφωνο": phone,
+                    "Email": email,
+                    "Περιοχή": area,
+                    "Σημειώσεις": notes,
+                }
                 updated = append_row(df, new, CONTACT_COLUMNS)
                 if safe_write(SHEET_CONTACTS, updated):
                     st.success("Αποθηκεύτηκε")
@@ -815,32 +1208,38 @@ def render_contacts(df):
 
 def render_loans(df):
     st.subheader("🏦 Δάνειο")
-    current_df = st.session_state.get("loans_local_df", df)
+    current_df = df.copy()
+
     with st.expander("➕ Νέο δάνειο"):
         with st.form("loan_form"):
             col1, col2 = st.columns(2)
             with col1:
                 desc = st.text_input("Περιγραφή")
                 principal = st.number_input("Κεφάλαιο (€)", min_value=0.0, step=1000.0)
+                start_date = st.date_input("Ημερομηνία έναρξης", value=date.today())
             with col2:
                 rate = st.number_input("Επιτόκιο (%)", min_value=0.0, step=0.1)
                 months = st.number_input("Μήνες", min_value=1, step=1)
-                start_date = st.date_input("Ημερομηνία έναρξης", value=date.today())
+                status = st.selectbox("Κατάσταση", ["Ενεργό", "Υπό εξέταση", "Εξοφλήθηκε"])
+            notes = st.text_input("Σημειώσεις")
+
             if st.form_submit_button("Αποθήκευση"):
                 clean_desc = desc.strip()
                 months_int = int(months)
                 principal_val = to_money(principal)
                 rate_val = to_money(rate)
+
                 if not clean_desc:
                     st.warning("Συμπλήρωσε περιγραφή δανείου.")
                 elif months_int <= 0:
-                    st.warning("Οι μήνες πρέπει να είναι μεγαλύτεροι από 0.")
+                    st.warning("Οι μήνες πρέπει να είναι > 0.")
                 else:
                     monthly_rate = rate_val / 100 / 12
                     if monthly_rate == 0:
                         installment = principal_val / months_int
                     else:
                         installment = principal_val * (monthly_rate * (1 + monthly_rate) ** months_int) / ((1 + monthly_rate) ** months_int - 1)
+
                     new = {
                         "Περιγραφή": clean_desc,
                         "Κεφάλαιο": principal_val,
@@ -848,39 +1247,42 @@ def render_loans(df):
                         "Μήνες": months_int,
                         "Μηνιαία_Δόση": installment,
                         "Έναρξη": str(start_date),
-                        "Κατάσταση": "Ενεργό",
-                        "Σημειώσεις": "",
+                        "Κατάσταση": status,
+                        "Σημειώσεις": notes,
                     }
                     updated = append_row(current_df, new, LOAN_COLUMNS)
-                    with st.spinner("Αποθήκευση δανείου..."):
-                        ok = safe_write(SHEET_LOANS, updated)
-                    if ok:
-                        st.session_state["loans_local_df"] = updated
-                        st.toast("Η καταχώρηση δανείου αποθηκεύτηκε", icon="✅")
+                    if safe_write(SHEET_LOANS, updated):
+                        st.success("Το δάνειο αποθηκεύτηκε.")
                         st.rerun()
+
     show_table(current_df)
 
 
 def render_timeline_page(df):
-    st.subheader("🗓️ Timeline")
-    current_df = st.session_state.get("tasks_local_df", df)
-    with st.expander("➕ Νέα εργασία"):
+    st.subheader("🗓️ Timeline / Gantt")
+    current_df = normalize_task_df(df.copy())
+
+    with st.expander("➕ Νέα εργασία planning"):
         with st.form("task_form"):
             col1, col2 = st.columns(2)
             with col1:
                 name = st.text_input("Εργασία")
                 room = st.selectbox("Χώρος", ROOMS)
                 status = st.selectbox("Κατάσταση", TASK_STATUSES)
+                priority = st.selectbox("Προτεραιότητα", TASK_PRIORITIES)
             with col2:
                 start = st.date_input("Έναρξη")
                 end = st.date_input("Λήξη")
                 assignee = st.text_input("Ανάθεση")
+                cost = st.number_input("Κόστος (€)", min_value=0.0, step=10.0)
+            notes = st.text_input("Σημειώσεις")
+
             if st.form_submit_button("Αποθήκευση"):
                 clean_name = name.strip()
                 if not clean_name:
                     st.warning("Συμπλήρωσε όνομα εργασίας.")
                 elif end < start:
-                    st.error("Η ημερομηνία λήξης δεν μπορεί να είναι πριν την έναρξη.")
+                    st.error("Η λήξη δεν μπορεί να είναι πριν την έναρξη.")
                 else:
                     new = {
                         "Εργασία": clean_name,
@@ -888,30 +1290,40 @@ def render_timeline_page(df):
                         "Κατάσταση": status,
                         "Ημερομηνία_Έναρξης": str(start),
                         "Ημερομηνία_Λήξης": str(end),
-                        "Κόστος": 0,
-                        "Προτεραιότητα": "Μεσαία",
+                        "Κόστος": cost,
+                        "Προτεραιότητα": priority,
                         "Ανάθεση": assignee.strip(),
-                        "Σημειώσεις": "",
+                        "Σημειώσεις": notes,
                     }
                     updated = append_row(current_df, new, TASK_COLUMNS)
-                    with st.spinner("Αποθήκευση εργασίας..."):
-                        ok = safe_write(SHEET_TASKS, updated)
-                    if ok:
-                        st.session_state["tasks_local_df"] = updated
-                        st.toast("Η εργασία αποθηκεύτηκε", icon="✅")
+                    if safe_write(SHEET_TASKS, updated):
+                        st.success("Η εργασία αποθηκεύτηκε.")
                         st.rerun()
 
     timeline = prepare_timeline(current_df)
     if not timeline.empty:
-        fig = px.timeline(timeline, x_start="Start", x_end="End", y="Task", color="Status")
-        fig.update_layout(height=450)
+        fig = px.timeline(
+            timeline,
+            x_start="Start",
+            x_end="End",
+            y="Task",
+            color="Status",
+            hover_data=["Room", "Assignee", "Priority"],
+            color_discrete_map={
+                "To Do": "#c9a96b",
+                "Doing": "#2e6f95",
+                "Done": "#3f7d6b",
+            },
+        )
+        fig.update_layout(height=470)
+        fig.update_yaxes(autorange="reversed")
         st.plotly_chart(fig, use_container_width=True)
     show_table(current_df)
 
 
 def render_tasks(df):
     st.subheader("📋 Εργασίες")
-    show_table(df)
+    show_table(normalize_task_df(df))
 
 
 def render_offers(df):
@@ -924,9 +1336,16 @@ def render_offers(df):
                 cat = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES)
             with col2:
                 amount = st.number_input("Ποσό (€)", min_value=0.0, step=100.0)
-                notes = st.text_input("Σημειώσεις")
+                desc = st.text_input("Περιγραφή")
+            notes = st.text_input("Σημειώσεις")
             if st.form_submit_button("Αποθήκευση") and provider:
-                new = {"Πάροχος": provider, "Περιγραφή": "", "Ποσό": amount, "Κατηγορία": cat, "Σημειώσεις": notes}
+                new = {
+                    "Πάροχος": provider,
+                    "Περιγραφή": desc,
+                    "Ποσό": amount,
+                    "Κατηγορία": cat,
+                    "Σημειώσεις": notes,
+                }
                 updated = append_row(df, new, OFFER_COLUMNS)
                 if safe_write(SHEET_OFFERS, updated):
                     st.success("Αποθηκεύτηκε")
@@ -936,12 +1355,12 @@ def render_offers(df):
 
 def render_gallery(df):
     st.subheader("📸 Gallery")
-    st.caption("Για μεγάλα volumes προτείνεται αποθήκευση με URL (Cloud Storage), όχι base64 στο Sheet.")
+    st.caption("Για πολλά αρχεία, προτίμησε URL αντί για base64 στο sheet.")
     with st.expander("➕ Νέα εικόνα"):
         with st.form("gallery_form"):
             room = st.selectbox("Χώρος", ROOMS)
             title = st.text_input("Τίτλος")
-            img_type = st.selectbox("Τύπος", ["Before", "After", "Progress"])
+            img_type = st.selectbox("Τύπος", IMAGE_TYPES)
             uploaded = st.file_uploader("Εικόνα", type=["jpg", "png", "jpeg"])
             notes = st.text_input("Σημειώσεις")
             if st.form_submit_button("Αποθήκευση") and uploaded:
@@ -950,23 +1369,38 @@ def render_gallery(df):
                 buffer = io.BytesIO()
                 img.save(buffer, format="JPEG", quality=75)
                 img_data = base64.b64encode(buffer.getvalue()).decode()
-                new = {"Χώρος": room, "Τίτλος": title, "Τύπος": img_type, "Image_URL": "", "Image_Data": img_data, "Σημειώσεις": notes}
+                new = {
+                    "Χώρος": room,
+                    "Τίτλος": title,
+                    "Τύπος": img_type,
+                    "Image_URL": "",
+                    "Image_Data": img_data,
+                    "Σημειώσεις": notes,
+                }
                 updated = append_row(df, new, GALLERY_COLUMNS)
                 if safe_write(SHEET_GALLERY, updated):
                     st.success("Αποθηκεύτηκε")
                     st.rerun()
+
     if not df.empty:
-        for _, row in df.tail(10).iterrows():
-            if row.get("Image_Data"):
-                st.image(f"data:image/jpeg;base64,{row['Image_Data']}", width=220)
+        preview = df.tail(10)
+        cols = st.columns(3)
+        for i, (_, row) in enumerate(preview.iterrows()):
+            with cols[i % 3]:
+                if row.get("Image_Data"):
+                    st.image(f"data:image/jpeg;base64,{row['Image_Data']}", use_container_width=True)
                 st.caption(f"{row.get('Χώρος', '')} - {row.get('Τίτλος', '')}")
 
 
 def render_analytics(df_exp, df_material, df_fee):
     st.subheader("📊 Αναλύσεις")
-    exp_total = money_series(df_exp, "Ποσό").sum()
-    mat_total = money_series(df_material, "Σύνολο").sum()
-    st.metric("Σύνολο Εξόδων", format_currency(exp_total + mat_total))
+
+    actual_total = money_series(df_exp, "Ποσό").sum()
+    material_register_total = money_series(df_material, "Σύνολο").sum()
+
+    c1, c2 = st.columns(2)
+    c1.metric("Σύνολο πραγματικών πληρωμών", format_currency(actual_total))
+    c2.metric("Σύνολο materials register", format_currency(material_register_total))
 
     if not df_exp.empty:
         exp_local = df_exp.copy()
@@ -984,11 +1418,11 @@ def render_analytics(df_exp, df_material, df_fee):
 
     st.markdown("**Budget vs Actual (Αμοιβές)**")
     if df_fee.empty:
-        st.info("Δεν υπάρχουν budget αμοιβών για σύγκριση.")
+        st.info("Δεν υπάρχουν budget αμοιβών.")
     else:
-        fee_budget = df_fee.copy()
-        fee_budget["Ποσό"] = money_series(fee_budget, "Ποσό")
-        budget_by_cat = fee_budget.groupby("Κατηγορία", as_index=False)["Ποσό"].sum().rename(columns={"Ποσό": "Budget"})
+        fee_budget = normalize_fee_df(df_fee)
+        fee_budget["Συνολικό_Ποσό"] = fee_budget["Συνολικό_Ποσό"].apply(to_money)
+        budget_by_cat = fee_budget.groupby("Κατηγορία", as_index=False)["Συνολικό_Ποσό"].sum().rename(columns={"Συνολικό_Ποσό": "Budget"})
 
         actual_fees = pd.DataFrame(columns=["Κατηγορία", "Actual"])
         if not df_exp.empty:
@@ -1006,10 +1440,6 @@ def render_analytics(df_exp, df_material, df_fee):
             lambda x: "⚠️ Υπέρβαση" if x > 10 else ("✅ Εντός" if x >= -10 else "⬇️ Κάτω budget")
         )
         st.dataframe(compare, use_container_width=True)
-        overruns = compare[compare["% Απόκλιση"] > 10]
-        if not overruns.empty:
-            cats = ", ".join(overruns["Κατηγορία"].astype(str).tolist())
-            st.warning(f"Υπέρβαση budget (>10%) στις κατηγορίες: {cats}")
 
 
 def render_calculator():
@@ -1028,7 +1458,7 @@ def render_calculator():
 # -----------------------------
 # MAIN
 # -----------------------------
-inject_v22_theme()
+inject_v23_theme()
 st.sidebar.markdown("### Πλοήγηση")
 st.sidebar.caption(f"{APP_VERSION} • Κατασκευαστής: {APP_BUILDER}")
 
@@ -1073,9 +1503,9 @@ global_filters = {
 with st.sidebar.expander("📤 Export"):
     if st.button("Προετοιμασία Excel", key="prepare_excel_export"):
         exp_df = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
-        fee_df = safe_read(SHEET_FEES, FEE_COLUMNS)
+        fee_df = normalize_fee_df(safe_read(SHEET_FEES, FEE_COLUMNS, optional_columns=["Ποσό"]))
         mat_df = safe_read(SHEET_MATERIALS, MATERIAL_COLUMNS)
-        task_df = safe_read(SHEET_TASKS, TASK_COLUMNS)
+        task_df = normalize_task_df(safe_read(SHEET_TASKS, TASK_COLUMNS))
         loan_df = safe_read(SHEET_LOANS, LOAN_COLUMNS)
         st.session_state["excel_export_bytes"] = build_excel_bytes(
             {
@@ -1096,48 +1526,31 @@ with st.sidebar.expander("📤 Export"):
         )
 
 if menu == "🏠 Dashboard":
-    df_expenses = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
-    df_fees = safe_read(SHEET_FEES, FEE_COLUMNS)
-    df_materials = safe_read(SHEET_MATERIALS, MATERIAL_COLUMNS)
-    df_tasks = safe_read(SHEET_TASKS, TASK_COLUMNS)
-    df_expenses = apply_expense_filters(df_expenses, global_filters)
-    df_materials = apply_material_filters(df_materials, global_filters)
-    render_dashboard(df_expenses, df_fees, df_materials, df_tasks)
+    exp_filtered = apply_expense_filters(df_expenses, global_filters)
+    mat_filtered = apply_material_filters(df_materials, global_filters)
+    render_dashboard(exp_filtered, df_fees, mat_filtered, df_tasks)
 elif menu == "💰 Έξοδα":
-    df_expenses = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
-    df_expenses = apply_expense_filters(df_expenses, global_filters)
     render_expenses(df_expenses)
 elif menu == "💼 Αμοιβές":
-    df_fees = safe_read(SHEET_FEES, FEE_COLUMNS)
-    render_fees(df_fees)
+    render_fees(df_fees, df_expenses)
 elif menu == "📦 Υλικά":
-    df_materials = safe_read(SHEET_MATERIALS, MATERIAL_COLUMNS)
-    df_materials = apply_material_filters(df_materials, global_filters)
     render_materials(df_materials)
 elif menu == "📞 Επαφές":
-    df_contacts = safe_read(SHEET_CONTACTS, CONTACT_COLUMNS)
     render_contacts(df_contacts)
 elif menu == "🏦 Δάνειο":
-    df_loans = safe_read(SHEET_LOANS, LOAN_COLUMNS)
     render_loans(df_loans)
 elif menu == "🗓️ Timeline":
-    df_tasks = safe_read(SHEET_TASKS, TASK_COLUMNS)
     render_timeline_page(df_tasks)
 elif menu == "📋 Εργασίες":
-    df_tasks = safe_read(SHEET_TASKS, TASK_COLUMNS)
     render_tasks(df_tasks)
 elif menu == "💼 Προσφορές":
-    df_offers = safe_read(SHEET_OFFERS, OFFER_COLUMNS)
     render_offers(df_offers)
 elif menu == "📸 Gallery":
-    df_gallery = safe_read(SHEET_GALLERY, GALLERY_COLUMNS)
     render_gallery(df_gallery)
 elif menu == "📊 Αναλύσεις":
-    df_expenses = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
-    df_materials = safe_read(SHEET_MATERIALS, MATERIAL_COLUMNS)
-    df_fees = safe_read(SHEET_FEES, FEE_COLUMNS)
-    df_expenses = apply_expense_filters(df_expenses, global_filters)
-    df_materials = apply_material_filters(df_materials, global_filters)
-    render_analytics(df_expenses, df_materials, df_fees)
+    exp_filtered = apply_expense_filters(df_expenses, global_filters)
+    mat_filtered = apply_material_filters(df_materials, global_filters)
+    render_analytics(exp_filtered, mat_filtered, df_fees)
 elif menu == "🧮 Calculator":
     render_calculator()
+
