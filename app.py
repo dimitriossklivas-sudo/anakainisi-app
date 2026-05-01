@@ -794,6 +794,7 @@ def prepare_timeline(df_tasks):
         rows.append(
             {
                 "Task": name,
+                "TaskLabel": f"{row.get('Χώρος', '')} • {name}" if str(row.get("Χώρος", "")).strip() else name,
                 "Start": start,
                 "End": end,
                 "Status": row.get("Κατάσταση", "To Do"),
@@ -807,14 +808,30 @@ def prepare_timeline(df_tasks):
 
 def checklist_summary(df):
     if df.empty:
-        return pd.DataFrame(columns=["Χώρος", "Σύνολο", "Ολοκληρωμένα", "Ποσοστό"])
+        return pd.DataFrame(columns=["Χώρος", "Σύνολο", "Ολοκληρωμένα", "Υπόλοιπα", "Ποσοστό", "Κατάσταση"])
     rows = []
     for room in sorted(df["Χώρος"].dropna().astype(str).unique()):
         sub = df[df["Χώρος"] == room]
         total = len(sub)
         done = int(sub["Ολοκληρώθηκε"].apply(normalize_checklist_bool).sum())
         pct = (done / total * 100) if total > 0 else 0
-        rows.append({"Χώρος": room, "Σύνολο": total, "Ολοκληρωμένα": done, "Ποσοστό": pct})
+        pending = total - done
+        if done == 0:
+            status = "Δεν ξεκίνησε"
+        elif done == total:
+            status = "Ολοκληρώθηκε"
+        else:
+            status = "Σε πρόοδο"
+        rows.append(
+            {
+                "Χώρος": room,
+                "Σύνολο": total,
+                "Ολοκληρωμένα": done,
+                "Υπόλοιπα": pending,
+                "Ποσοστό": pct,
+                "Κατάσταση": status,
+            }
+        )
     return pd.DataFrame(rows)
 
 
@@ -840,6 +857,7 @@ def render_checklist_visual(df):
                 f"""
                 <div class="check-card">
                     <div class="check-card-title">{row['Χώρος']}</div>
+                    <div class="visual-card-subtitle">{row['Κατάσταση']} • Υπόλοιπα: {int(row['Υπόλοιπα'])}</div>
                 """,
                 unsafe_allow_html=True,
             )
@@ -897,12 +915,17 @@ def render_dashboard(df_exp, df_fee, df_material, df_task, df_check):
     fees = calculate_fee_status(df_fee, df_exp)
     materials = calculate_material_split(df_material)
     checks = checklist_summary(df_check)
+    checklist_total = int(checks["Σύνολο"].sum()) if not checks.empty else 0
+    checklist_done = int(checks["Ολοκληρωμένα"].sum()) if not checks.empty else 0
+    checklist_pct = (checklist_done / checklist_total * 100) if checklist_total > 0 else 0
+    rooms_in_progress = checks[checks["Κατάσταση"] == "Σε πρόοδο"]["Χώρος"].tolist() if not checks.empty else []
+    completed_rooms = checks[checks["Κατάσταση"] == "Ολοκληρώθηκε"]["Χώρος"].tolist() if not checks.empty else []
 
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Σύνολο πραγματικών πληρωμών", format_currency(total_actual_paid))
     col2.metric("Έξοδα", len(df_exp))
     col3.metric("Υλικά", len(df_material))
-    col4.metric("Checklist items", len(df_check))
+    col4.metric("Checklist progress", f"{checklist_pct:.0f}%")
 
     if st.button("Ανάλυση συνεισφοράς", key="open_total_spend_breakdown"):
         st.session_state["show_total_spend_breakdown"] = not st.session_state.get("show_total_spend_breakdown", False)
@@ -963,13 +986,21 @@ def render_dashboard(df_exp, df_fee, df_material, df_task, df_check):
     if checks.empty:
         st.info("Δεν υπάρχει checklist ακόμη.")
     else:
+        st.write(f"Συνολικά ολοκληρωμένα checklist items: {checklist_done}/{checklist_total}")
+        if rooms_in_progress:
+            st.write(f"Χώροι σε πρόοδο τώρα: {', '.join(rooms_in_progress)}")
+        elif completed_rooms:
+            st.write(f"Ολοκληρωμένοι χώροι: {', '.join(completed_rooms)}")
         for _, row in checks.iterrows():
-            st.markdown(f'<span class="check-room-badge">{row["Χώρος"]}: {int(row["Ολοκληρωμένα"])}/{int(row["Σύνολο"])} ({row["Ποσοστό"]:.0f}%)</span>', unsafe_allow_html=True)
+            st.markdown(
+                f'<span class="check-room-badge">{row["Χώρος"]}: {int(row["Ολοκληρωμένα"])}/{int(row["Σύνολο"])} ({row["Ποσοστό"]:.0f}%) • {row["Κατάσταση"]}</span>',
+                unsafe_allow_html=True,
+            )
 
     st.markdown('<div class="dashboard-section-title">🗓️ Timeline / Gantt</div>', unsafe_allow_html=True)
     timeline = prepare_timeline(df_task)
     if not timeline.empty:
-        fig = px.timeline(timeline, x_start="Start", x_end="End", y="Task", color="Status")
+        fig = px.timeline(timeline, x_start="Start", x_end="End", y="TaskLabel", color="Status")
         fig.update_layout(height=400)
         fig.update_yaxes(autorange="reversed")
         st.plotly_chart(fig, use_container_width=True)
@@ -1362,12 +1393,18 @@ def render_timeline_page(df):
                         st.rerun()
 
     timeline = prepare_timeline(current_df)
+    active_tasks = current_df[current_df["Κατάσταση"] == "Doing"].copy() if not current_df.empty else pd.DataFrame()
+    if not active_tasks.empty:
+        st.markdown("### Σε progress τώρα")
+        progress_preview = active_tasks[["Χώρος", "Εργασία", "Ανάθεση", "Ημερομηνία_Λήξης"]].copy()
+        st.dataframe(progress_preview, use_container_width=True)
+
     if not timeline.empty:
         fig = px.timeline(
             timeline,
             x_start="Start",
             x_end="End",
-            y="Task",
+            y="TaskLabel",
             color="Status",
             hover_data=["Room", "Assignee", "Priority"],
         )
@@ -1428,10 +1465,15 @@ def render_checklist(df):
         return
 
     summary = checklist_summary(current_df)
+    active_rooms = summary[summary["Κατάσταση"] == "Σε πρόοδο"]["Χώρος"].tolist() if not summary.empty else []
     c1, c2, c3 = st.columns(3)
     c1.metric("Σύνολο εργασιών", len(current_df))
     c2.metric("Ολοκληρωμένες", int(current_df["Ολοκληρώθηκε"].sum()))
     c3.metric("Ποσοστό ολοκλήρωσης", f"{(current_df['Ολοκληρώθηκε'].sum() / len(current_df) * 100):.0f}%")
+    if active_rooms:
+        st.write(f"Χώροι που βρίσκονται σε πρόοδο: {', '.join(active_rooms)}")
+    else:
+        st.write("Δεν υπάρχει χώρος σε ενεργή πρόοδο αυτή τη στιγμή.")
 
     render_checklist_visual(current_df)
 
