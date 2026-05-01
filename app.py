@@ -37,6 +37,29 @@ def inject_v24_theme():
             --aegean-blue: #2e6f95;
             --sea-foam: #cfe8e6;
             --lava-rust: #915f35;
+            --app-fg: #1f2328;
+            --subtle-fg: #6a6763;
+            --card-bg: #ffffff;
+            --card-border: rgba(47, 52, 55, 0.10);
+            --progress-fg: #2a2d30;
+            --progress-track-bg: #e8dfd2;
+            --badge-bg: #f0e5d6;
+            --badge-fg: #6b533c;
+            --badge-border: rgba(93, 71, 51, 0.14);
+        }}
+        html[data-theme="dark"],
+        body[data-theme="dark"],
+        .stApp[data-theme="dark"],
+        [data-theme="dark"] {{
+            --app-fg: #f5f7fa;
+            --subtle-fg: #c7d0d8;
+            --card-bg: #1f2428;
+            --card-border: rgba(233, 237, 241, 0.16);
+            --progress-fg: #e9edf1;
+            --progress-track-bg: #313840;
+            --badge-bg: #2a3238;
+            --badge-fg: #f0e5d2;
+            --badge-border: rgba(233, 237, 241, 0.14);
         }}
         .stApp {{
             background: linear-gradient(180deg, #fbfaf8 0%, #f3f0ea 100%);
@@ -98,18 +121,18 @@ def inject_v24_theme():
         .dashboard-section-title {{
             font-size: 1.08rem;
             font-weight: 800;
-            color: #1f2328;
+            color: var(--app-fg);
             margin-top: 14px;
             margin-bottom: 8px;
         }}
         .dashboard-section-subtitle {{
             font-size: 0.9rem;
-            color: #6a6763;
+            color: var(--subtle-fg);
             margin-bottom: 10px;
         }}
         .visual-card {{
-            background: #ffffff;
-            border: 1px solid rgba(47, 52, 55, 0.10);
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
             border-radius: 16px;
             padding: 14px 14px 12px 14px;
             margin-bottom: 12px;
@@ -118,12 +141,12 @@ def inject_v24_theme():
         .visual-card-title {{
             font-size: 1rem;
             font-weight: 700;
-            color: #1f2328;
+            color: var(--app-fg);
             margin-bottom: 4px;
         }}
         .visual-card-subtitle {{
             font-size: 0.86rem;
-            color: #6d6a67;
+            color: var(--subtle-fg);
             margin-bottom: 10px;
         }}
         .progress-row {{
@@ -135,14 +158,14 @@ def inject_v24_theme():
             align-items: center;
             gap: 12px;
             font-size: 0.87rem;
-            color: #2a2d30;
+            color: var(--progress-fg);
             margin-bottom: 4px;
         }}
         .progress-track {{
             width: 100%;
             height: 13px;
             border-radius: 999px;
-            background: #e8dfd2;
+            background: var(--progress-track-bg);
             overflow: hidden;
         }}
         .progress-fill {{
@@ -159,14 +182,15 @@ def inject_v24_theme():
             border-radius: 999px;
             font-size: 0.78rem;
             font-weight: 700;
-            background: #efe5d7;
-            color: #5d4733;
+            background: var(--badge-bg);
+            color: var(--badge-fg);
+            border: 1px solid var(--badge-border);
             margin-right: 6px;
             margin-bottom: 6px;
         }}
         .check-card {{
-            background: #ffffff;
-            border: 1px solid rgba(47, 52, 55, 0.10);
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
             border-radius: 16px;
             padding: 12px 14px;
             margin-bottom: 12px;
@@ -175,14 +199,15 @@ def inject_v24_theme():
         .check-card-title {{
             font-size: 1rem;
             font-weight: 700;
-            color: #1f2328;
+            color: var(--app-fg);
             margin-bottom: 8px;
         }}
         .check-room-badge {{
             display: inline-block;
             padding: 6px 10px;
-            background: #f0e5d6;
-            color: #6b533c;
+            background: var(--badge-bg);
+            color: var(--badge-fg);
+            border: 1px solid var(--badge-border);
             font-size: 0.78rem;
             border-radius: 999px;
             margin-right: 6px;
@@ -196,6 +221,17 @@ def inject_v24_theme():
             }}
             .stApp, .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4 {{
                 color: #e9edf1 !important;
+            }}
+            :root {{
+                --app-fg: #f5f7fa;
+                --subtle-fg: #c7d0d8;
+                --card-bg: #1f2428;
+                --card-border: rgba(233, 237, 241, 0.16);
+                --progress-fg: #e9edf1;
+                --progress-track-bg: #313840;
+                --badge-bg: #2a3238;
+                --badge-fg: #f0e5d2;
+                --badge-border: rgba(233, 237, 241, 0.14);
             }}
             .stApp [data-testid="stMetric"] {{
                 background: #1f2428 !important;
@@ -215,10 +251,6 @@ def inject_v24_theme():
             .stApp [data-baseweb="select"] *,
             .stApp div[data-testid="stDataFrame"] * {{
                 color: #e9edf1 !important;
-            }}
-            .visual-card, .check-card {{
-                background: #1f2428 !important;
-                border: 1px solid rgba(233, 237, 241, 0.16) !important;
             }}
             .app-watermark {{
                 color: rgba(233, 237, 241, 0.78) !important;
@@ -400,7 +432,7 @@ def normalize_checklist_bool(value):
     if isinstance(value, bool):
         return value
     text = str(value).strip().lower()
-    return text in ["true", "1", "yes", "y", "ναι", "checked", "done"]
+    return text in ["true", "1", "yes", "y", "ναι", "checked", "done", "completed", "ok"]
 
 
 def prepare_checklist_df(df):
@@ -412,6 +444,16 @@ def prepare_checklist_df(df):
         return pd.DataFrame(columns=CHECKLIST_COLUMNS)
     local["_id"] = local["_id"].astype(str)
     local["Ολοκληρώθηκε"] = local["Ολοκληρώθηκε"].apply(normalize_checklist_bool)
+    return local[CHECKLIST_COLUMNS]
+
+
+def serialize_checklist_df(df):
+    local = prepare_checklist_df(df.copy())
+    if local.empty:
+        return pd.DataFrame(columns=CHECKLIST_COLUMNS)
+    local["Ολοκληρώθηκε"] = local["Ολοκληρώθηκε"].apply(
+        lambda x: "TRUE" if normalize_checklist_bool(x) else "FALSE"
+    )
     return local[CHECKLIST_COLUMNS]
 
 
@@ -1429,7 +1471,7 @@ def render_checklist(df):
     with top2:
         if current_df.empty and st.button("Φόρτωση προτεινόμενου checklist", key="seed_checklist"):
             seeded_df = build_default_checklist_df()
-            if safe_write(SHEET_CHECKLIST, seeded_df):
+            if safe_write(SHEET_CHECKLIST, serialize_checklist_df(seeded_df)):
                 st.success("Το αρχικό checklist δημιουργήθηκε.")
                 st.rerun()
 
@@ -1456,7 +1498,7 @@ def render_checklist(df):
                     },
                     CHECKLIST_COLUMNS,
                 )
-                if safe_write(SHEET_CHECKLIST, updated):
+                if safe_write(SHEET_CHECKLIST, serialize_checklist_df(updated)):
                     st.success("Το item προστέθηκε.")
                     st.rerun()
 
@@ -1475,6 +1517,10 @@ def render_checklist(df):
     else:
         st.write("Δεν υπάρχει χώρος σε ενεργή πρόοδο αυτή τη στιγμή.")
 
+    st.markdown("### Αποθηκευμένη κατάσταση checklist")
+    status_preview = current_df[["Χώρος", "Εργασία", "Ολοκληρώθηκε", "Προτεραιότητα"]].copy()
+    st.dataframe(status_preview, use_container_width=True)
+
     render_checklist_visual(current_df)
 
     tabs = st.tabs(["Checklist editor", "Διαγραφή"])
@@ -1486,7 +1532,7 @@ def render_checklist(df):
             bool_cols=["Ολοκληρώθηκε"],
         )
         if st.button("💾 Αποθήκευση checklist", key="save_checklist"):
-            if safe_write(SHEET_CHECKLIST, edited):
+            if safe_write(SHEET_CHECKLIST, serialize_checklist_df(edited)):
                 st.success("Το checklist αποθηκεύτηκε.")
                 st.rerun()
 
@@ -1500,7 +1546,7 @@ def render_checklist(df):
         )
         if should_delete and selected_id:
             new_df = delete_by_id(current_df, selected_id)
-            if safe_write(SHEET_CHECKLIST, new_df):
+            if safe_write(SHEET_CHECKLIST, serialize_checklist_df(new_df)):
                 st.success("Το item διαγράφηκε.")
                 st.rerun()
 
@@ -1727,5 +1773,6 @@ elif menu == "📊 Αναλύσεις":
     render_analytics(exp_filtered, mat_filtered, df_fees, df_checklist)
 elif menu == "🧮 Calculator":
     render_calculator()
+
 
    
