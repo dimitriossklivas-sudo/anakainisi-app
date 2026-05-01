@@ -503,12 +503,21 @@ def safe_write(sheet_name, df):
                 is_rate_limited = "429" in message or "RATE_LIMIT_EXCEEDED" in message or "RESOURCE_EXHAUSTED" in message
                 is_transient_server = "500" in message or "503" in message or "UNAVAILABLE" in message or "INTERNAL" in message
                 is_not_found = "404" in message
+                is_permission_denied = "403" in message or "PERMISSION_DENIED" in message or "does not have permission" in message
 
                 if (is_rate_limited or is_transient_server) and attempt < retries - 1:
                     time.sleep(0.4 * (attempt + 1))
                     continue
                 if is_not_found:
                     break
+                if is_permission_denied:
+                    st.error(
+                        f"Σφάλμα δικαιωμάτων στο '{worksheet_name}'. "
+                        "Το app μπορεί να διαβάζει ή να βλέπει το sheet, αλλά δεν έχει δικαίωμα εγγραφής. "
+                        "Έλεγξε ότι το Google Sheet είναι shared με δικαίωμα Editor στο service account / connection "
+                        "και ότι το tab ή το range δεν είναι protected."
+                    )
+                    return False
 
                 st.error(f"Σφάλμα εγγραφής στο '{worksheet_name}': {exc}")
                 return False
@@ -1774,5 +1783,3 @@ elif menu == "📊 Αναλύσεις":
 elif menu == "🧮 Calculator":
     render_calculator()
 
-
-   
