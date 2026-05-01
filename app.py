@@ -1668,15 +1668,227 @@ def render_analytics(df_exp, df_material, df_fee, df_check):
 
 def render_calculator():
     st.subheader("🧮 Calculator")
-    st.caption("Υπολογιστής υλικών με εκτίμηση κόστους.")
-    qty = st.number_input("Ποσότητα", min_value=0.0, step=1.0)
-    unit_price = st.number_input("Τιμή μονάδας (€)", min_value=0.0, step=0.5)
-    waste = st.slider("Ποσοστό φύρας (%)", 0, 30, 10)
-    adjusted_qty = qty * (1 + waste / 100)
-    total = adjusted_qty * unit_price
-    col1, col2 = st.columns(2)
-    col1.metric("Ποσότητα με φύρα", f"{adjusted_qty:.2f}")
-    col2.metric("Εκτιμώμενο κόστος", format_currency(total))
+    mode = st.selectbox(
+        "Τύπος υπολογισμού",
+        ["Απλός υπολογιστής υλικών", "Τιμολόγιο πλακιδίων"],
+        key="calculator_mode",
+    )
+
+    if mode == "Απλός υπολογιστής υλικών":
+        st.caption("Υπολογιστής υλικών με εκτίμηση κόστους.")
+        qty = st.number_input("Ποσότητα", min_value=0.0, step=1.0)
+        unit_price = st.number_input("Τιμή μονάδας (€)", min_value=0.0, step=0.5)
+        waste = st.slider("Ποσοστό φύρας (%)", 0, 30, 10)
+        adjusted_qty = qty * (1 + waste / 100)
+        total = adjusted_qty * unit_price
+        col1, col2 = st.columns(2)
+        col1.metric("Ποσότητα με φύρα", f"{adjusted_qty:.2f}")
+        col2.metric("Εκτιμώμενο κόστος", format_currency(total))
+        return
+
+    st.caption("Ανάλυση τιμολογίου υλικών για πλακάκια, κόλλες και σοβά σε τοίχους και πάτωμα.")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        wall_area = st.number_input("m² τοίχων", min_value=0.0, step=1.0, value=20.0)
+        wall_tile_price = st.number_input("Τιμή πλακιδίου τοίχου ανά m² (€)", min_value=0.0, step=0.5, value=18.0)
+        floor_area = st.number_input("m² πατώματος", min_value=0.0, step=1.0, value=8.0)
+        floor_tile_price = st.number_input("Τιμή πλακιδίου πατώματος ανά m² (€)", min_value=0.0, step=0.5, value=22.0)
+        tile_waste = st.slider("Φύρα πλακιδίων (%)", 0, 30, 10, key="tile_invoice_waste")
+
+    with c2:
+        tiled_total_area = wall_area + floor_area
+        glue_area = st.number_input("m² για κόλλες", min_value=0.0, step=1.0, value=float(tiled_total_area))
+        glue_price_per_m2 = st.number_input("Κόλλες ανά m² (€)", min_value=0.0, step=0.1, value=4.5)
+        plaster_area = st.number_input("m² για σοβά", min_value=0.0, step=1.0, value=float(floor_area))
+        plaster_price_per_m2 = st.number_input("Σοβάς ανά m² (€)", min_value=0.0, step=0.1, value=6.0)
+        extra_materials = st.number_input("Λοιπά υλικά (€)", min_value=0.0, step=1.0, value=0.0)
+
+    adjusted_wall_area = wall_area * (1 + tile_waste / 100)
+    adjusted_floor_area = floor_area * (1 + tile_waste / 100)
+
+    wall_tiles_cost = adjusted_wall_area * wall_tile_price
+    floor_tiles_cost = adjusted_floor_area * floor_tile_price
+    total_tiles_cost = wall_tiles_cost + floor_tiles_cost
+    glue_cost = glue_area * glue_price_per_m2
+    plaster_cost = plaster_area * plaster_price_per_m2
+    grand_total = total_tiles_cost + glue_cost + plaster_cost + extra_materials
+
+    summary1, summary2, summary3, summary4 = st.columns(4)
+    summary1.metric("Πλακάκια τοίχου", format_currency(wall_tiles_cost))
+    summary2.metric("Πλακάκια πατώματος", format_currency(floor_tiles_cost))
+    summary3.metric("Κόλλες", format_currency(glue_cost))
+    summary4.metric("Σοβάς", format_currency(plaster_cost))
+
+    st.metric("Συνολικό τιμολόγιο υλικών", format_currency(grand_total))
+
+    invoice_df = pd.DataFrame(
+        [
+            {
+                "Κατηγορία": "Πλακάκια τοίχου",
+                "m²": round(adjusted_wall_area, 2),
+                "Τιμή ανά m²": wall_tile_price,
+                "Σύνολο": wall_tiles_cost,
+            },
+            {
+                "Κατηγορία": "Πλακάκια πατώματος",
+                "m²": round(adjusted_floor_area, 2),
+                "Τιμή ανά m²": floor_tile_price,
+                "Σύνολο": floor_tiles_cost,
+            },
+            {
+                "Κατηγορία": "Κόλλες",
+                "m²": round(glue_area, 2),
+                "Τιμή ανά m²": glue_price_per_m2,
+                "Σύνολο": glue_cost,
+            },
+            {
+                "Κατηγορία": "Σοβάς",
+                "m²": round(plaster_area, 2),
+                "Τιμή ανά m²": plaster_price_per_m2,
+                "Σύνολο": plaster_cost,
+            },
+            {
+                "Κατηγορία": "Λοιπά υλικά",
+                "m²": 0.0,
+                "Τιμή ανά m²": 0.0,
+                "Σύνολο": extra_materials,
+            },
+        ]
+    )
+
+    if grand_total > 0:
+        invoice_df["Ποσοστό Τιμολογίου"] = invoice_df["Σύνολο"].apply(lambda x: f"{(x / grand_total) * 100:.1f}%")
+    else:
+        invoice_df["Ποσοστό Τιμολογίου"] = "0.0%"
+
+    st.markdown("### Ανάλυση τιμολογίου")
+    st.dataframe(invoice_df, use_container_width=True)
+
+    chart_df = invoice_df[invoice_df["Σύνολο"] > 0].copy()
+    if not chart_df.empty:
+        fig = px.bar(
+            chart_df,
+            x="Κατηγορία",
+            y="Σύνολο",
+            color="Κατηγορία",
+            title="Διαχωρισμός εξόδων υλικών",
+            template="plotly_white",
+        )
+        fig.update_layout(showlegend=False, height=380)
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("### Χρήσιμες λεπτομέρειες")
+    st.write(f"Συνολικά m² πλακιδίων πριν τη φύρα: {tiled_total_area:.2f}")
+    st.write(f"Συνολικά m² πλακιδίων μετά τη φύρα: {(adjusted_wall_area + adjusted_floor_area):.2f}")
+
+    st.markdown("### Πέρασμα στα Materials")
+    export_col1, export_col2 = st.columns(2)
+    with export_col1:
+        export_category = st.selectbox(
+            "Κατηγορία καταχώρησης",
+            EXPENSE_CATEGORIES,
+            index=EXPENSE_CATEGORIES.index("Πλακάκια") if "Πλακάκια" in EXPENSE_CATEGORIES else 0,
+            key="calc_export_category",
+        )
+        export_room = st.selectbox("Χώρος", ROOMS, key="calc_export_room")
+        export_payer = st.selectbox("Πληρωτής", PAYERS, key="calc_export_payer")
+    with export_col2:
+        export_supplier = st.text_input("Προμηθευτής", key="calc_export_supplier")
+        export_status = st.selectbox("Κατάσταση", MATERIAL_STATUS, key="calc_export_status")
+        export_notes = st.text_input("Σημειώσεις", key="calc_export_notes")
+
+    export_rows = []
+    if wall_tiles_cost > 0:
+        export_rows.append(
+            {
+                "Κατηγορία": export_category,
+                "Υλικό": f"Πλακάκια τοίχου ({export_room})",
+                "Ποσότητα": round(adjusted_wall_area, 2),
+                "Μονάδα": "m2",
+                "Τιμή_Μονάδας": wall_tile_price,
+                "Σύνολο": wall_tiles_cost,
+                "Πληρωτής": export_payer,
+                "Προμηθευτής": export_supplier,
+                "Κατάσταση": export_status,
+                "Σημειώσεις": export_notes,
+            }
+        )
+    if floor_tiles_cost > 0:
+        export_rows.append(
+            {
+                "Κατηγορία": export_category,
+                "Υλικό": f"Πλακάκια πατώματος ({export_room})",
+                "Ποσότητα": round(adjusted_floor_area, 2),
+                "Μονάδα": "m2",
+                "Τιμή_Μονάδας": floor_tile_price,
+                "Σύνολο": floor_tiles_cost,
+                "Πληρωτής": export_payer,
+                "Προμηθευτής": export_supplier,
+                "Κατάσταση": export_status,
+                "Σημειώσεις": export_notes,
+            }
+        )
+    if glue_cost > 0:
+        export_rows.append(
+            {
+                "Κατηγορία": export_category,
+                "Υλικό": f"Κόλλες πλακιδίων ({export_room})",
+                "Ποσότητα": round(glue_area, 2),
+                "Μονάδα": "m2",
+                "Τιμή_Μονάδας": glue_price_per_m2,
+                "Σύνολο": glue_cost,
+                "Πληρωτής": export_payer,
+                "Προμηθευτής": export_supplier,
+                "Κατάσταση": export_status,
+                "Σημειώσεις": export_notes,
+            }
+        )
+    if plaster_cost > 0:
+        export_rows.append(
+            {
+                "Κατηγορία": export_category,
+                "Υλικό": f"Σοβάς ({export_room})",
+                "Ποσότητα": round(plaster_area, 2),
+                "Μονάδα": "m2",
+                "Τιμή_Μονάδας": plaster_price_per_m2,
+                "Σύνολο": plaster_cost,
+                "Πληρωτής": export_payer,
+                "Προμηθευτής": export_supplier,
+                "Κατάσταση": export_status,
+                "Σημειώσεις": export_notes,
+            }
+        )
+    if extra_materials > 0:
+        export_rows.append(
+            {
+                "Κατηγορία": export_category,
+                "Υλικό": f"Λοιπά υλικά ({export_room})",
+                "Ποσότητα": 1.0,
+                "Μονάδα": "τεμ",
+                "Τιμή_Μονάδας": extra_materials,
+                "Σύνολο": extra_materials,
+                "Πληρωτής": export_payer,
+                "Προμηθευτής": export_supplier,
+                "Κατάσταση": export_status,
+                "Σημειώσεις": export_notes,
+            }
+        )
+
+    export_df = pd.DataFrame(export_rows)
+    if not export_df.empty:
+        st.markdown("#### Έτοιμες γραμμές για Materials")
+        st.dataframe(export_df, use_container_width=True)
+
+        if st.button("Πέρασμα στα Materials", key="calc_export_to_materials"):
+            updated_materials = df_materials.copy()
+            for row in export_rows:
+                updated_materials = append_row(updated_materials, row, MATERIAL_COLUMNS)
+            if safe_write(SHEET_MATERIALS, updated_materials):
+                st.success("Οι γραμμές πέρασαν στο Materials.")
+                st.rerun()
+    else:
+        st.info("Δεν υπάρχουν ποσά για πέρασμα στα Materials.")
 
 
 # -----------------------------
@@ -1782,4 +1994,5 @@ elif menu == "📊 Αναλύσεις":
     render_analytics(exp_filtered, mat_filtered, df_fees, df_checklist)
 elif menu == "🧮 Calculator":
     render_calculator()
+
 
