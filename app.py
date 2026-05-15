@@ -13,6 +13,7 @@ from streamlit_gsheets import GSheetsConnection
 
 st.set_page_config(page_title="Methana Earth & Fire v3", layout="wide")
 APP_VERSION = "v3.0"
+DEFAULT_SHEET_TTL_SECONDS = 180
 APP_BUILDER = "ΣΚΛΙΒΑΣ Σ. ΔΗΜΗΤΡΙΟΣ"
 
 
@@ -28,11 +29,51 @@ conn = get_connection()
 
 
 def clear_gsheet_read_cache():
-    # Force fresh reads after writes so checklist/progress update immediately.
-    try:
-        st.cache_data.clear()
-    except Exception:
-        pass
+    st.session_state["_sheet_cache"] = {}
+
+
+def get_sheet_cache_store():
+    return st.session_state.setdefault("_sheet_cache", {})
+
+
+def build_sheet_cache_key(sheet_name, columns, optional_columns=None):
+    optional_columns = optional_columns or []
+    all_columns = list(dict.fromkeys(columns + optional_columns))
+    return f"{sheet_name}|{'|'.join(all_columns)}"
+
+
+def get_cached_sheet(sheet_name, columns, ttl_seconds, optional_columns=None):
+    cache_key = build_sheet_cache_key(sheet_name, columns, optional_columns)
+    cached = get_sheet_cache_store().get(cache_key)
+    if not cached:
+        return None
+    if ttl_seconds is not None and ttl_seconds >= 0:
+        age = time.time() - cached["timestamp"]
+        if age > ttl_seconds:
+            return None
+    return cached["df"].copy()
+
+
+def set_cached_sheet(sheet_name, columns, df, optional_columns=None):
+    cache_key = build_sheet_cache_key(sheet_name, columns, optional_columns)
+    get_sheet_cache_store()[cache_key] = {
+        "timestamp": time.time(),
+        "df": df.copy(),
+    }
+
+
+def refresh_cached_sheet_timestamp(sheet_name, columns, optional_columns=None):
+    cache_key = build_sheet_cache_key(sheet_name, columns, optional_columns)
+    cached = get_sheet_cache_store().get(cache_key)
+    if cached:
+        cached["timestamp"] = time.time()
+
+
+def invalidate_sheet_cache(sheet_name):
+    cache_store = get_sheet_cache_store()
+    keys_to_delete = [key for key in cache_store if key.startswith(f"{sheet_name}|")]
+    for key in keys_to_delete:
+        del cache_store[key]
 
 
 def inject_v3_theme():
@@ -858,7 +899,9 @@ def sync_checklist_to_progress(checklist_df, tasks_df):
 
 def persist_checklist_and_progress(checklist_df):
     checklist_local = ensure_ids(prepare_checklist_df(checklist_df.copy()))
-    current_progress = normalize_task_df(safe_read(SHEET_TASKS, TASK_COLUMNS, ttl_seconds=0))
+    current_progress = normalize_task_df(
+        safe_read(SHEET_TASKS, TASK_COLUMNS, ttl_seconds=DEFAULT_SHEET_TTL_SECONDS, force_refresh=True)
+    )
     synced_progress = sync_checklist_to_progress(checklist_local, current_progress)
 
     checklist_ok = safe_write(SHEET_CHECKLIST, serialize_checklist_df(checklist_local))
@@ -872,10 +915,65 @@ def persist_checklist_and_progress(checklist_df):
     return True
 
 
-def safe_read(sheet_name, columns, ttl_seconds=60, optional_columns=None):
+def safe_read(sheet_name, columns, ttl_seconds=DEFAULT_SHEET_TTL_SECONDS, optional_columns=None, force_refresh=False):
     optional_columns = optional_columns or []
+    all_columns = list(dict.fromkeys(columns + optional_columns))
+    if not force_refresh:
+        cached_df = get_cached_sheet(sheet_name, columns, ttl_seconds, optional_columns)
+        if cached_df is not None:
+            return cached_df
     candidates = [sheet_name] + SHEET_ALIASES.get(sheet_name, [])
     last_error = None
+    retries = 3
+    stale_df = get_cached_sheet(sheet_name, columns, None, optional_columns)
+
+    for worksheet_name in candidates:
+        for attempt in range(retries):
+            try:
+                read_ttl = 0 if force_refresh else max(int(ttl_seconds or DEFAULT_SHEET_TTL_SECONDS), 30)
+                df = conn.read(worksheet=worksheet_name, ttl=read_ttl)
+                if df is None or df.empty:
+                    empty_df = pd.DataFrame(columns=columns)
+                    set_cached_sheet(sheet_name, columns, empty_df, optional_columns)
+                    return empty_df
+                df = df.dropna(how="all")
+                for col in all_columns:
+                    if col not in df.columns:
+                        df[col] = ""
+                if "_id" not in df.columns:
+                    df["_id"] = ""
+                df["_id"] = df["_id"].astype(str)
+                normalized_df = df[all_columns]
+                set_cached_sheet(sheet_name, columns, normalized_df, optional_columns)
+                return normalized_df
+            except Exception as exc:
+                last_error = exc
+                message = str(exc)
+                is_rate_limited = "429" in message or "RATE_LIMIT_EXCEEDED" in message or "RESOURCE_EXHAUSTED" in message
+                is_transient_server = "500" in message or "503" in message or "UNAVAILABLE" in message or "INTERNAL" in message
+                is_not_found = "404" in message
+
+                if (is_rate_limited or is_transient_server) and attempt < retries - 1:
+                    time.sleep(0.8 * (attempt + 1))
+                    continue
+                if is_not_found:
+                    break
+                if (is_rate_limited or is_transient_server) and stale_df is not None:
+                    refresh_cached_sheet_timestamp(sheet_name, columns, optional_columns)
+                    st.info(f"Προσωρινή χρήση cached δεδομένων για το sheet '{sheet_name}' λόγω ορίου Google Sheets.")
+                    return stale_df
+                st.warning(f"Αδυναμία ανάγνωσης sheet '{worksheet_name}': {exc}")
+                if stale_df is not None:
+                    return stale_df
+                return pd.DataFrame(columns=columns)
+
+    if stale_df is not None:
+        refresh_cached_sheet_timestamp(sheet_name, columns, optional_columns)
+        st.info(f"Χρήση cached δεδομένων για το sheet '{sheet_name}' έως να επανέλθει το Google Sheets quota.")
+        return stale_df
+
+    st.warning(f"Αδυναμία ανάγνωσης sheet '{sheet_name}'. Ελέγξτε το worksheet. ({last_error})")
+    return pd.DataFrame(columns=columns)
 
     for worksheet_name in candidates:
         try:
@@ -911,7 +1009,8 @@ def safe_write(sheet_name, df):
         for attempt in range(retries):
             try:
                 conn.update(worksheet=worksheet_name, data=df)
-                clear_gsheet_read_cache()
+                invalidate_sheet_cache(sheet_name)
+                set_cached_sheet(sheet_name, list(df.columns), df.copy())
                 return True
             except Exception as exc:
                 last_error = exc
@@ -1367,10 +1466,10 @@ df_fees = normalize_fee_df(safe_read(SHEET_FEES, FEE_COLUMNS, optional_columns=[
 df_contacts = safe_read(SHEET_CONTACTS, CONTACT_COLUMNS)
 df_materials = safe_read(SHEET_MATERIALS, MATERIAL_COLUMNS)
 df_loans = safe_read(SHEET_LOANS, LOAN_COLUMNS)
-df_tasks = normalize_task_df(safe_read(SHEET_TASKS, TASK_COLUMNS, ttl_seconds=0))
+df_tasks = normalize_task_df(safe_read(SHEET_TASKS, TASK_COLUMNS, ttl_seconds=DEFAULT_SHEET_TTL_SECONDS))
 df_offers = safe_read(SHEET_OFFERS, OFFER_COLUMNS)
 df_gallery = safe_read(SHEET_GALLERY, GALLERY_COLUMNS)
-df_checklist = prepare_checklist_df(safe_read(SHEET_CHECKLIST, CHECKLIST_COLUMNS, ttl_seconds=0))
+df_checklist = prepare_checklist_df(safe_read(SHEET_CHECKLIST, CHECKLIST_COLUMNS, ttl_seconds=DEFAULT_SHEET_TTL_SECONDS))
 
 
 # -----------------------------
@@ -2797,12 +2896,12 @@ global_filters = {
 
 with st.sidebar.expander("📤 Export"):
     if st.button("Προετοιμασία Excel", key="prepare_excel_export"):
-        exp_df = safe_read(SHEET_EXPENSES, EXPENSE_COLUMNS)
-        fee_df = normalize_fee_df(safe_read(SHEET_FEES, FEE_COLUMNS, optional_columns=["Ποσό"]))
-        mat_df = safe_read(SHEET_MATERIALS, MATERIAL_COLUMNS)
-        task_df = normalize_task_df(safe_read(SHEET_TASKS, TASK_COLUMNS))
-        loan_df = safe_read(SHEET_LOANS, LOAN_COLUMNS)
-        check_df = prepare_checklist_df(safe_read(SHEET_CHECKLIST, CHECKLIST_COLUMNS))
+        exp_df = df_expenses
+        fee_df = df_fees
+        mat_df = df_materials
+        task_df = df_tasks
+        loan_df = df_loans
+        check_df = df_checklist
         st.session_state["excel_export_bytes"] = build_excel_bytes(
             {
                 "Expenses": exp_df,
@@ -2852,3 +2951,4 @@ elif menu == "📊 Αναλύσεις":
     render_analytics(exp_filtered, mat_filtered, df_fees, df_checklist)
 elif menu == "🧮 Calculator":
     render_calculator()
+
