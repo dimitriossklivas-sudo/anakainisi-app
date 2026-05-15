@@ -3,6 +3,7 @@ import io
 import time
 import uuid
 from datetime import date, timedelta
+from html import escape
 
 import pandas as pd
 import plotly.express as px
@@ -10,8 +11,8 @@ import streamlit as st
 from PIL import Image
 from streamlit_gsheets import GSheetsConnection
 
-st.set_page_config(page_title="Methana Earth & Fire v2", layout="wide")
-APP_VERSION = "v2.4"
+st.set_page_config(page_title="Methana Earth & Fire v3", layout="wide")
+APP_VERSION = "v3.0"
 APP_BUILDER = "ΣΚΛΙΒΑΣ Σ. ΔΗΜΗΤΡΙΟΣ"
 
 
@@ -26,7 +27,15 @@ def get_connection():
 conn = get_connection()
 
 
-def inject_v24_theme():
+def clear_gsheet_read_cache():
+    # Force fresh reads after writes so checklist/progress update immediately.
+    try:
+        st.cache_data.clear()
+    except Exception:
+        pass
+
+
+def inject_v3_theme():
     st.markdown(
         f"""
         <style>
@@ -214,6 +223,227 @@ def inject_v24_theme():
             margin-bottom: 6px;
             font-weight: 700;
         }}
+        .stApp, .stApp * {{
+            font-family: "Aptos", "Segoe UI", "Tahoma", sans-serif;
+        }}
+        h1, h2, h3, .methana-hero .title, .page-banner-title {{
+            font-family: "Constantia", "Georgia", serif;
+        }}
+        .hero-pill-row {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 10px;
+        }}
+        .page-banner {{
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 18px;
+            padding: 22px 24px;
+            margin: 6px 0 18px 0;
+            border-radius: 22px;
+            overflow: hidden;
+            color: #ffffff;
+            background:
+                radial-gradient(circle at top right, rgba(201, 169, 107, 0.28), transparent 34%),
+                linear-gradient(135deg, rgba(28, 27, 26, 0.98) 0%, rgba(63, 71, 79, 0.95) 52%, rgba(46, 111, 149, 0.92) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 22px 42px rgba(20, 24, 27, 0.16);
+        }}
+        .page-banner::after {{
+            content: "";
+            position: absolute;
+            right: -40px;
+            top: -44px;
+            width: 220px;
+            height: 220px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.08);
+        }}
+        .page-banner-eyebrow {{
+            position: relative;
+            z-index: 1;
+            font-size: 0.74rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            opacity: 0.8;
+            margin-bottom: 6px;
+            font-weight: 700;
+        }}
+        .page-banner-title {{
+            position: relative;
+            z-index: 1;
+            font-size: 1.55rem;
+            line-height: 1.15;
+            font-weight: 800;
+            letter-spacing: 0.2px;
+        }}
+        .page-banner-subtitle {{
+            position: relative;
+            z-index: 1;
+            margin-top: 8px;
+            font-size: 0.95rem;
+            max-width: 760px;
+            opacity: 0.92;
+        }}
+        .page-banner-pills {{
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 8px;
+        }}
+        .hero-pill {{
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 999px;
+            padding: 7px 11px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            color: #f8f4ed;
+            background: rgba(255, 255, 255, 0.11);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            backdrop-filter: blur(3px);
+        }}
+        .stat-strip {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin: 6px 0 16px 0;
+        }}
+        .stat-card {{
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 18px;
+            padding: 14px 16px;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.05);
+        }}
+        .stat-label {{
+            font-size: 0.76rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--subtle-fg);
+            font-weight: 700;
+        }}
+        .stat-value {{
+            margin-top: 5px;
+            font-size: 1.28rem;
+            line-height: 1.15;
+            color: var(--app-fg);
+            font-weight: 800;
+        }}
+        .stat-note {{
+            margin-top: 5px;
+            font-size: 0.84rem;
+            color: var(--subtle-fg);
+        }}
+        .sync-badge {{
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin: 2px 0 14px 0;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(46, 111, 149, 0.10);
+            color: #1e4b67;
+            border: 1px solid rgba(46, 111, 149, 0.18);
+            font-size: 0.84rem;
+            font-weight: 700;
+        }}
+        .subtle-panel {{
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 18px;
+            padding: 14px 16px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.04);
+        }}
+        .stButton > button {{
+            border-radius: 12px;
+            border: 1px solid rgba(47, 52, 55, 0.14);
+            background: linear-gradient(180deg, #ffffff 0%, #f4efe6 100%);
+            color: #1f2328;
+            font-weight: 700;
+            box-shadow: 0 8px 16px rgba(47, 52, 55, 0.08);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }}
+        .stButton > button:hover {{
+            transform: translateY(-1px);
+            border-color: rgba(46, 111, 149, 0.32);
+            box-shadow: 0 10px 22px rgba(46, 111, 149, 0.12);
+        }}
+        .stTabs [data-baseweb="tab-list"] {{
+            gap: 8px;
+        }}
+        .stTabs [data-baseweb="tab"] {{
+            border-radius: 999px;
+            padding: 8px 14px;
+            border: 1px solid rgba(47, 52, 55, 0.12);
+            background: rgba(255, 255, 255, 0.62);
+        }}
+        .stTabs [aria-selected="true"] {{
+            background: linear-gradient(135deg, #2f3437 0%, #2e6f95 100%) !important;
+            color: #ffffff !important;
+            border-color: transparent !important;
+        }}
+        .stExpander {{
+            border: 1px solid var(--card-border) !important;
+            border-radius: 18px !important;
+            background: rgba(255, 255, 255, 0.52) !important;
+            overflow: hidden;
+        }}
+        .stExpander details summary {{
+            padding-top: 2px;
+            padding-bottom: 2px;
+        }}
+        .stApp [data-baseweb="select"] > div,
+        .stApp [data-baseweb="input"] > div,
+        .stApp [data-baseweb="textarea"] > div,
+        .stDateInput > div > div,
+        .stNumberInput > div > div {{
+            border-radius: 12px !important;
+            border: 1px solid rgba(47, 52, 55, 0.14) !important;
+            background: rgba(255, 255, 255, 0.88) !important;
+            box-shadow: none !important;
+        }}
+        .stApp div[data-testid="stDataFrame"],
+        .stApp div[data-testid="stTable"] {{
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 18px;
+            padding: 6px;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.04);
+        }}
+        .stApp div[data-testid="stAlert"] {{
+            border-radius: 16px;
+        }}
+        .sidebar-brand {{
+            border-radius: 18px;
+            padding: 14px 14px 12px 14px;
+            margin-bottom: 10px;
+            background: linear-gradient(145deg, rgba(201,169,107,0.18) 0%, rgba(255,255,255,0.08) 100%);
+            border: 1px solid rgba(255,255,255,0.12);
+        }}
+        .sidebar-brand-title {{
+            font-size: 1rem;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+            margin-bottom: 4px;
+        }}
+        .sidebar-brand-subtitle {{
+            font-size: 0.82rem;
+            opacity: 0.9;
+            line-height: 1.4;
+        }}
+        .sidebar-brand-meta {{
+            margin-top: 10px;
+            font-size: 0.74rem;
+            opacity: 0.82;
+            letter-spacing: 0.03em;
+        }}
 
         @media (prefers-color-scheme: dark) {{
             .stApp {{
@@ -257,6 +487,30 @@ def inject_v24_theme():
                 background: rgba(20, 24, 28, 0.52) !important;
                 border: 1px solid rgba(233, 237, 241, 0.2) !important;
             }}
+            .stat-card,
+            .subtle-panel {{
+                box-shadow: 0 12px 26px rgba(0, 0, 0, 0.24) !important;
+            }}
+            .sync-badge {{
+                color: #d6e9f5 !important;
+                background: rgba(46, 111, 149, 0.22) !important;
+                border: 1px solid rgba(127, 183, 220, 0.30) !important;
+            }}
+            .stButton > button,
+            .stTabs [data-baseweb="tab"] {{
+                background: linear-gradient(180deg, #20262b 0%, #182026 100%) !important;
+                color: #f5f7fa !important;
+                border: 1px solid rgba(233, 237, 241, 0.14) !important;
+            }}
+            .stExpander,
+            .stApp [data-baseweb="select"] > div,
+            .stApp [data-baseweb="input"] > div,
+            .stApp [data-baseweb="textarea"] > div,
+            .stDateInput > div > div,
+            .stNumberInput > div > div {{
+                background: rgba(24, 30, 35, 0.92) !important;
+                border: 1px solid rgba(233, 237, 241, 0.14) !important;
+            }}
         }}
         </style>
         <div class="app-watermark">Κατασκευαστής app: {APP_BUILDER}</div>
@@ -269,12 +523,69 @@ def render_brand_header():
     st.markdown(
         f"""
         <div class="methana-hero">
-            <div class="title">🌋 Methana Earth & Fire - Renovation Suite {APP_VERSION}</div>
-            <div class="subtitle">Volcanic precision • Sea balance • Stone-solid tracking</div>
+            <div class="hero-pill-row">
+                <span class="hero-pill">Methana renovation suite</span>
+                <span class="hero-pill">Version {APP_VERSION}</span>
+                <span class="hero-pill">Built by {APP_BUILDER}</span>
+            </div>
+            <div class="title">Methana Earth & Fire</div>
+            <div class="subtitle">Operational clarity for budget, checklist tracking, and renovation progress.</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+
+def render_page_banner(title, subtitle, pills=None):
+    pills_html = "".join(f'<span class="hero-pill">{escape(str(item))}</span>' for item in (pills or []))
+    st.markdown(
+        f"""
+        <div class="page-banner">
+            <div>
+                <div class="page-banner-eyebrow">Renovation control room</div>
+                <div class="page-banner-title">{escape(str(title))}</div>
+                <div class="page-banner-subtitle">{escape(str(subtitle))}</div>
+            </div>
+            <div class="page-banner-pills">{pills_html}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_stat_strip(items):
+    cards = []
+    for item in items:
+        label = escape(str(item.get("label", "")))
+        value = escape(str(item.get("value", "")))
+        note = escape(str(item.get("note", "")))
+        cards.append(
+            f"""
+            <div class="stat-card">
+                <div class="stat-label">{label}</div>
+                <div class="stat-value">{value}</div>
+                <div class="stat-note">{note}</div>
+            </div>
+            """
+        )
+    st.markdown(f'<div class="stat-strip">{"".join(cards)}</div>', unsafe_allow_html=True)
+
+
+def count_unique_nonempty(df, column):
+    if df.empty or column not in df.columns:
+        return 0
+    values = df[column].dropna().astype(str).str.strip()
+    return int((values != "").sum() if column == "_id" else values[values != ""].nunique())
+
+
+def count_selected_filters(*groups):
+    total = 0
+    for group in groups:
+        if isinstance(group, str):
+            total += 1 if group.strip() else 0
+        elif group is not None:
+            total += len(group)
+    return total
 
 
 SHEET_EXPENSES = "Expenses"
@@ -320,6 +631,21 @@ TASK_COLUMNS = ["_id", "Εργασία", "Χώρος", "Κατάσταση", "Η
 OFFER_COLUMNS = ["_id", "Πάροχος", "Περιγραφή", "Ποσό", "Κατηγορία", "Σημειώσεις"]
 GALLERY_COLUMNS = ["_id", "Χώρος", "Τίτλος", "Τύπος", "Image_URL", "Image_Data", "Σημειώσεις"]
 CHECKLIST_COLUMNS = ["_id", "Χώρος", "Εργασία", "Ολοκληρώθηκε", "Προτεραιότητα", "Σημειώσεις"]
+CHECK_COL_ROOM = CHECKLIST_COLUMNS[1]
+CHECK_COL_TASK = CHECKLIST_COLUMNS[2]
+CHECK_COL_DONE = CHECKLIST_COLUMNS[3]
+CHECK_COL_PRIORITY = CHECKLIST_COLUMNS[4]
+CHECK_COL_NOTES = CHECKLIST_COLUMNS[5]
+TASK_COL_NAME = TASK_COLUMNS[1]
+TASK_COL_ROOM = TASK_COLUMNS[2]
+TASK_COL_STATUS = TASK_COLUMNS[3]
+TASK_COL_START = TASK_COLUMNS[4]
+TASK_COL_END = TASK_COLUMNS[5]
+TASK_COL_COST = TASK_COLUMNS[6]
+TASK_COL_PRIORITY = TASK_COLUMNS[7]
+TASK_COL_ASSIGNEE = TASK_COLUMNS[8]
+TASK_COL_NOTES = TASK_COLUMNS[9]
+CHECKLIST_SYNC_TAG = "[checklist-sync]"
 
 EXPENSE_CATEGORIES = ["Υδραυλικά", "Ηλεκτρολογικά", "Πλακάκια", "Κουζίνα", "Βάψιμο", "Κουφώματα", "Μπάνιο", "Άλλο"]
 EXPENSE_TYPES = ["Αμοιβή", "Υλικά", "Άλλο"]
@@ -435,6 +761,12 @@ def normalize_checklist_bool(value):
     return text in ["true", "1", "yes", "y", "ναι", "checked", "done", "completed", "ok"]
 
 
+def normalize_text(value):
+    if pd.isna(value):
+        return ""
+    return str(value).strip()
+
+
 def prepare_checklist_df(df):
     local = df.copy()
     for col in CHECKLIST_COLUMNS:
@@ -455,6 +787,89 @@ def serialize_checklist_df(df):
         lambda x: "TRUE" if normalize_checklist_bool(x) else "FALSE"
     )
     return local[CHECKLIST_COLUMNS]
+
+
+def build_checklist_task_note(notes):
+    clean_notes = normalize_text(notes)
+    if clean_notes:
+        return f"{CHECKLIST_SYNC_TAG}\n{clean_notes}"
+    return CHECKLIST_SYNC_TAG
+
+
+def strip_checklist_sync_tag(notes):
+    text = normalize_text(notes)
+    if not text.startswith(CHECKLIST_SYNC_TAG):
+        return text
+    return text[len(CHECKLIST_SYNC_TAG):].lstrip(" \n:-|")
+
+
+def is_synced_checklist_task(row):
+    return normalize_text(row.get(TASK_COL_NOTES, "")).startswith(CHECKLIST_SYNC_TAG)
+
+
+def prepare_task_display_df(df):
+    local = normalize_task_df(df.copy())
+    if TASK_COL_NOTES in local.columns:
+        local[TASK_COL_NOTES] = local[TASK_COL_NOTES].apply(strip_checklist_sync_tag)
+    return local
+
+
+def sync_checklist_to_progress(checklist_df, tasks_df):
+    checklist_local = ensure_ids(prepare_checklist_df(checklist_df.copy()))
+    tasks_local = normalize_task_df(tasks_df.copy()) if not tasks_df.empty else pd.DataFrame(columns=TASK_COLUMNS)
+    existing_by_id = {
+        str(row.get("_id", "")): row.to_dict()
+        for _, row in tasks_local.iterrows()
+    }
+    checklist_ids = set(checklist_local["_id"].astype(str))
+    preserved_tasks = tasks_local[
+        (~tasks_local["_id"].astype(str).isin(checklist_ids))
+        & (~tasks_local.apply(is_synced_checklist_task, axis=1))
+    ].copy() if not tasks_local.empty else pd.DataFrame(columns=TASK_COLUMNS)
+
+    today_iso = date.today().isoformat()
+    synced_rows = []
+
+    for _, item in checklist_local.iterrows():
+        row_id = str(item.get("_id", ""))
+        existing = existing_by_id.get(row_id, {})
+        is_done = normalize_checklist_bool(item.get(CHECK_COL_DONE, False))
+        current_start = normalize_text(existing.get(TASK_COL_START, ""))
+        current_end = normalize_text(existing.get(TASK_COL_END, ""))
+        synced_rows.append(
+            {
+                "_id": row_id,
+                TASK_COL_NAME: normalize_text(item.get(CHECK_COL_TASK, "")),
+                TASK_COL_ROOM: normalize_text(item.get(CHECK_COL_ROOM, "")),
+                TASK_COL_STATUS: TASK_STATUSES[2] if is_done else TASK_STATUSES[0],
+                TASK_COL_START: current_start or (today_iso if is_done else ""),
+                TASK_COL_END: current_end or (today_iso if is_done else ""),
+                TASK_COL_COST: existing.get(TASK_COL_COST, ""),
+                TASK_COL_PRIORITY: normalize_text(item.get(CHECK_COL_PRIORITY, "")),
+                TASK_COL_ASSIGNEE: normalize_text(existing.get(TASK_COL_ASSIGNEE, "")),
+                TASK_COL_NOTES: build_checklist_task_note(item.get(CHECK_COL_NOTES, "")),
+            }
+        )
+
+    synced_df = pd.DataFrame(synced_rows, columns=TASK_COLUMNS)
+    combined = pd.concat([preserved_tasks[TASK_COLUMNS], synced_df[TASK_COLUMNS]], ignore_index=True)
+    return normalize_task_df(combined)
+
+
+def persist_checklist_and_progress(checklist_df):
+    checklist_local = ensure_ids(prepare_checklist_df(checklist_df.copy()))
+    current_progress = normalize_task_df(safe_read(SHEET_TASKS, TASK_COLUMNS, ttl_seconds=0))
+    synced_progress = sync_checklist_to_progress(checklist_local, current_progress)
+
+    checklist_ok = safe_write(SHEET_CHECKLIST, serialize_checklist_df(checklist_local))
+    if not checklist_ok:
+        return False
+
+    progress_ok = safe_write(SHEET_TASKS, synced_progress)
+    if not progress_ok:
+        st.error("Το checklist αποθηκεύτηκε, αλλά το Progress δεν ενημερώθηκε σωστά.")
+        return False
+    return True
 
 
 def safe_read(sheet_name, columns, ttl_seconds=60, optional_columns=None):
@@ -496,6 +911,7 @@ def safe_write(sheet_name, df):
         for attempt in range(retries):
             try:
                 conn.update(worksheet=worksheet_name, data=df)
+                clear_gsheet_read_cache()
                 return True
             except Exception as exc:
                 last_error = exc
@@ -836,6 +1252,9 @@ def prepare_timeline(df_tasks):
         name = str(row.get("Εργασία", "")).strip()
         if not name:
             continue
+        has_explicit_dates = normalize_text(row.get("Ημερομηνία_Έναρξης", "")) or normalize_text(row.get("Ημερομηνία_Λήξης", ""))
+        if is_synced_checklist_task(row) and not has_explicit_dates:
+            continue
         start = parse_date_safe(row.get("Ημερομηνία_Έναρξης"), pd.Timestamp(date.today()))
         end = parse_date_safe(row.get("Ημερομηνία_Λήξης"), pd.Timestamp(date.today() + timedelta(days=1)))
         if pd.isna(start):
@@ -948,18 +1367,16 @@ df_fees = normalize_fee_df(safe_read(SHEET_FEES, FEE_COLUMNS, optional_columns=[
 df_contacts = safe_read(SHEET_CONTACTS, CONTACT_COLUMNS)
 df_materials = safe_read(SHEET_MATERIALS, MATERIAL_COLUMNS)
 df_loans = safe_read(SHEET_LOANS, LOAN_COLUMNS)
-df_tasks = normalize_task_df(safe_read(SHEET_TASKS, TASK_COLUMNS))
+df_tasks = normalize_task_df(safe_read(SHEET_TASKS, TASK_COLUMNS, ttl_seconds=0))
 df_offers = safe_read(SHEET_OFFERS, OFFER_COLUMNS)
 df_gallery = safe_read(SHEET_GALLERY, GALLERY_COLUMNS)
-df_checklist = prepare_checklist_df(safe_read(SHEET_CHECKLIST, CHECKLIST_COLUMNS))
+df_checklist = prepare_checklist_df(safe_read(SHEET_CHECKLIST, CHECKLIST_COLUMNS, ttl_seconds=0))
 
 
 # -----------------------------
 # Pages
 # -----------------------------
 def render_dashboard(df_exp, df_fee, df_material, df_task, df_check):
-    st.title("🏠 Dashboard Ανακαίνισης v2")
-
     total_actual_paid = money_series(df_exp, "Ποσό").sum()
     material_register_total = money_series(df_material, "Σύνολο").sum()
     spend_breakdown = calculate_total_spend_breakdown(df_exp)
@@ -971,12 +1388,42 @@ def render_dashboard(df_exp, df_fee, df_material, df_task, df_check):
     checklist_pct = (checklist_done / checklist_total * 100) if checklist_total > 0 else 0
     rooms_in_progress = checks[checks["Κατάσταση"] == "Σε πρόοδο"]["Χώρος"].tolist() if not checks.empty else []
     completed_rooms = checks[checks["Κατάσταση"] == "Ολοκληρώθηκε"]["Χώρος"].tolist() if not checks.empty else []
+    timeline_rows = prepare_timeline(df_task)
+    scheduled_items = len(timeline_rows)
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Σύνολο πραγματικών πληρωμών", format_currency(total_actual_paid))
-    col2.metric("Έξοδα", len(df_exp))
-    col3.metric("Υλικά", len(df_material))
-    col4.metric("Checklist progress", f"{checklist_pct:.0f}%")
+    render_page_banner(
+        "Dashboard Ανακαίνισης",
+        "Ζωντανή εικόνα για πληρωμές, υλικά, checklist και το progress των εργασιών σε ένα σημείο.",
+        [
+            f"Checklist {checklist_pct:.0f}%",
+            f"{len(rooms_in_progress)} χώροι ενεργοί" if rooms_in_progress else "Καμία ενεργή πρόοδος",
+            f"{scheduled_items} scheduled items",
+        ],
+    )
+    render_stat_strip(
+        [
+            {
+                "label": "Σύνολο πληρωμών",
+                "value": format_currency(total_actual_paid),
+                "note": f"{len(df_exp)} κινήσεις στο Expenses",
+            },
+            {
+                "label": "Materials register",
+                "value": format_currency(material_register_total),
+                "note": f"{len(df_material)} γραμμές υλικών",
+            },
+            {
+                "label": "Checklist progress",
+                "value": f"{checklist_done}/{checklist_total}" if checklist_total else "0/0",
+                "note": f"{checklist_pct:.0f}% ολοκλήρωση",
+            },
+            {
+                "label": "Progress board",
+                "value": str(len(df_task)),
+                "note": f"{scheduled_items} εμφανίζονται στο timeline",
+            },
+        ]
+    )
 
     if st.button("Ανάλυση συνεισφοράς", key="open_total_spend_breakdown"):
         st.session_state["show_total_spend_breakdown"] = not st.session_state.get("show_total_spend_breakdown", False)
@@ -1049,16 +1496,14 @@ def render_dashboard(df_exp, df_fee, df_material, df_task, df_check):
             )
 
     st.markdown('<div class="dashboard-section-title">🗓️ Timeline / Gantt</div>', unsafe_allow_html=True)
-    timeline = prepare_timeline(df_task)
-    if not timeline.empty:
-        fig = px.timeline(timeline, x_start="Start", x_end="End", y="TaskLabel", color="Status")
+    if not timeline_rows.empty:
+        fig = px.timeline(timeline_rows, x_start="Start", x_end="End", y="TaskLabel", color="Status")
         fig.update_layout(height=400)
         fig.update_yaxes(autorange="reversed")
         st.plotly_chart(fig, use_container_width=True)
 
 
 def render_expenses(df):
-    st.subheader("💰 Έξοδα")
     raw_df = df.copy()
     filtered_df = raw_df.copy()
 
@@ -1081,6 +1526,47 @@ def render_expenses(df):
         )
     if selected_type != "Όλα" and not filtered_df.empty:
         filtered_df = filtered_df[filtered_df["Είδος"] == selected_type]
+
+    filtered_total = money_series(filtered_df, "Ποσό").sum() if not filtered_df.empty else 0.0
+    active_filter_count = count_selected_filters(
+        search_local,
+        selected_categories,
+        selected_payers,
+        [] if selected_type == "Όλα" else [selected_type],
+    )
+    render_page_banner(
+        "Expense Ledger",
+        "Καταγραφή πληρωμών με γρήγορο φιλτράρισμα, grouping και inline επεξεργασία για πιο καθαρό οικονομικό έλεγχο.",
+        [
+            f"{len(filtered_df)} visible rows",
+            f"{active_filter_count} active filters" if active_filter_count else "All expenses visible",
+            f"Σύνολο {format_currency(filtered_total)}",
+        ],
+    )
+    render_stat_strip(
+        [
+            {
+                "label": "Σύνολο εγγραφών",
+                "value": str(len(raw_df)),
+                "note": "Αποθηκευμένα έξοδα",
+            },
+            {
+                "label": "Φιλτραρισμένο ποσό",
+                "value": format_currency(filtered_total),
+                "note": "Με βάση το τρέχον view",
+            },
+            {
+                "label": "Κατηγορίες στο view",
+                "value": str(count_unique_nonempty(filtered_df, "Κατηγορία")),
+                "note": "Μοναδικές κατηγορίες",
+            },
+            {
+                "label": "Πληρωτές στο view",
+                "value": str(count_unique_nonempty(filtered_df, "Πληρωτής")),
+                "note": "Κατανομή συμμετοχών",
+            },
+        ]
+    )
 
     with st.expander("➕ Νέο έξοδο"):
         with st.form("expense_form"):
@@ -1143,8 +1629,16 @@ def render_expenses(df):
 
 
 def render_fees(df_fee, df_exp):
-    st.subheader("💼 Αμοιβές")
     raw_df = normalize_fee_df(df_fee.copy())
+    render_page_banner(
+        "Contractor Fees",
+        "Παρακολούθηση budget αμοιβών, συμμετοχών και πραγματικών πληρωμών ανά κατηγορία συνεργείου.",
+        [
+            f"{len(raw_df)} fee records",
+            f"{count_unique_nonempty(raw_df, 'Κατηγορία')} categories",
+            "Budget vs actual",
+        ],
+    )
 
     with st.expander("➕ Νέα αμοιβή"):
         with st.form("fee_form"):
@@ -1182,11 +1676,30 @@ def render_fees(df_fee, df_exp):
     total_budget = status["Συνολικό_Ποσό"].apply(to_money).sum()
     total_paid = status["Πλήρωσα Εγώ"].apply(to_money).sum() + status["Πλήρωσε Πατέρας"].apply(to_money).sum()
     total_remaining = max(total_budget - total_paid, 0)
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Συνολικό budget αμοιβών", format_currency(total_budget))
-    c2.metric("Σύνολο πληρωμένο", format_currency(total_paid))
-    c3.metric("Συνολικό υπόλοιπο", format_currency(total_remaining))
+    render_stat_strip(
+        [
+            {
+                "label": "Budget αμοιβών",
+                "value": format_currency(total_budget),
+                "note": "Συνολικό συμβατικό ποσό",
+            },
+            {
+                "label": "Πληρωμένο",
+                "value": format_currency(total_paid),
+                "note": "Από Expenses / είδος Αμοιβή",
+            },
+            {
+                "label": "Υπόλοιπο",
+                "value": format_currency(total_remaining),
+                "note": "Απομένει να καλυφθεί",
+            },
+            {
+                "label": "Κάρτες",
+                "value": str(len(status)),
+                "note": "Ενεργές κατηγορίες αμοιβών",
+            },
+        ]
+    )
 
     tabs = st.tabs(["Αναλυτικά", "Visual κάρτες", "Επεξεργασία", "Διαγραφή"])
 
@@ -1247,7 +1760,6 @@ def render_fees(df_fee, df_exp):
 
 
 def render_materials(df):
-    st.subheader("📦 Υλικά")
     raw_df = df.copy()
     filtered_df = raw_df.copy()
 
@@ -1261,6 +1773,41 @@ def render_materials(df):
             raw_df,
             {"categories": selected_categories, "payers": selected_payers, "search": search_local},
         )
+    filtered_total = money_series(filtered_df, "Σύνολο").sum() if not filtered_df.empty else 0.0
+    pending_count = len(filtered_df[filtered_df["Κατάσταση"] != "Παραδόθηκε"]) if not filtered_df.empty and "Κατάσταση" in filtered_df.columns else 0
+    render_page_banner(
+        "Materials Register",
+        "Κεντρικός πίνακας για υλικά, ποσότητες, προμηθευτές και κατάσταση παραγγελίας με πιο γρήγορη επιχειρησιακή εικόνα.",
+        [
+            f"{len(filtered_df)} visible materials",
+            f"{count_unique_nonempty(filtered_df, 'Προμηθευτής')} suppliers",
+            f"Σύνολο {format_currency(filtered_total)}",
+        ],
+    )
+    render_stat_strip(
+        [
+            {
+                "label": "Γραμμές υλικών",
+                "value": str(len(raw_df)),
+                "note": "Ολικό register",
+            },
+            {
+                "label": "Τρέχον κόστος view",
+                "value": format_currency(filtered_total),
+                "note": "Με βάση τα φίλτρα",
+            },
+            {
+                "label": "Pending / in transit",
+                "value": str(pending_count),
+                "note": "Όσα δεν έχουν παραδοθεί",
+            },
+            {
+                "label": "Κατηγορίες",
+                "value": str(count_unique_nonempty(filtered_df, "Κατηγορία")),
+                "note": "Μοναδικές στο current view",
+            },
+        ]
+    )
 
     with st.expander("➕ Νέο υλικό"):
         with st.form("material_form"):
@@ -1328,7 +1875,39 @@ def render_materials(df):
 
 
 def render_contacts(df):
-    st.subheader("📞 Επαφές")
+    render_page_banner(
+        "Contacts Book",
+        "Συγκεντρωμένες επαφές συνεργείων, προμηθευτών και καταστημάτων για γρήγορη επιχειρησιακή πρόσβαση.",
+        [
+            f"{len(df)} contacts",
+            f"{count_unique_nonempty(df, 'Ρόλος')} roles",
+            f"{count_unique_nonempty(df, 'Περιοχή')} areas",
+        ],
+    )
+    render_stat_strip(
+        [
+            {
+                "label": "Επαφές",
+                "value": str(len(df)),
+                "note": "Συνολικό address book",
+            },
+            {
+                "label": "Ρόλοι",
+                "value": str(count_unique_nonempty(df, "Ρόλος")),
+                "note": "Εξειδικεύσεις / συνεργεία",
+            },
+            {
+                "label": "Emails",
+                "value": str(count_unique_nonempty(df, "Email")),
+                "note": "Μη κενές email εγγραφές",
+            },
+            {
+                "label": "Περιοχές",
+                "value": str(count_unique_nonempty(df, "Περιοχή")),
+                "note": "Γεωγραφική κάλυψη",
+            },
+        ]
+    )
     with st.expander("➕ Νέα επαφή"):
         with st.form("contact_form"):
             col1, col2 = st.columns(2)
@@ -1357,8 +1936,43 @@ def render_contacts(df):
 
 
 def render_loans(df):
-    st.subheader("🏦 Δάνειο")
     current_df = df.copy()
+    principal_total = money_series(current_df, "Κεφάλαιο").sum() if not current_df.empty else 0.0
+    installment_total = money_series(current_df, "Μηνιαία_Δόση").sum() if not current_df.empty else 0.0
+    active_loans = len(current_df[current_df["Κατάσταση"] == "Ενεργό"]) if not current_df.empty and "Κατάσταση" in current_df.columns else 0
+    render_page_banner(
+        "Loan Planner",
+        "Παρακολούθηση χρηματοδότησης, μηνιαίων δόσεων και κατάστασης για πιο καθαρό cash planning.",
+        [
+            f"{len(current_df)} loan records",
+            f"{active_loans} active",
+            f"Μηνιαία βάση {format_currency(installment_total)}",
+        ],
+    )
+    render_stat_strip(
+        [
+            {
+                "label": "Σύνολο κεφαλαίου",
+                "value": format_currency(principal_total),
+                "note": "Καταγεγραμμένο principal",
+            },
+            {
+                "label": "Μηνιαίες δόσεις",
+                "value": format_currency(installment_total),
+                "note": "Άθροισμα από όλα τα δάνεια",
+            },
+            {
+                "label": "Ενεργά",
+                "value": str(active_loans),
+                "note": "Records σε κατάσταση Ενεργό",
+            },
+            {
+                "label": "Σύνολο εγγραφών",
+                "value": str(len(current_df)),
+                "note": "Loan scenarios / πραγματικά δάνεια",
+            },
+        ]
+    )
     with st.expander("➕ Νέο δάνειο"):
         with st.form("loan_form"):
             col1, col2 = st.columns(2)
@@ -1404,8 +2018,44 @@ def render_loans(df):
 
 
 def render_timeline_page(df):
-    st.subheader("🗓️ Timeline / Gantt")
     current_df = normalize_task_df(df.copy())
+    display_df = prepare_task_display_df(current_df)
+    active_count = len(current_df[current_df["Κατάσταση"] == "Doing"]) if not current_df.empty else 0
+    done_count = len(current_df[current_df["Κατάσταση"] == "Done"]) if not current_df.empty else 0
+    timeline_preview = prepare_timeline(current_df)
+    render_page_banner(
+        "Timeline & Gantt",
+        "Ο προγραμματισμός εργασιών σε ημερομηνίες, με σαφή εικόνα για active tasks, ολοκληρώσεις και scheduled items.",
+        [
+            f"{len(current_df)} total tasks",
+            f"{active_count} active now",
+            f"{len(timeline_preview)} scheduled on chart",
+        ],
+    )
+    render_stat_strip(
+        [
+            {
+                "label": "Εργασίες",
+                "value": str(len(current_df)),
+                "note": "Συνολικά records στο Progress",
+            },
+            {
+                "label": "Σε πρόοδο",
+                "value": str(active_count),
+                "note": "Status = Doing",
+            },
+            {
+                "label": "Ολοκληρωμένες",
+                "value": str(done_count),
+                "note": "Status = Done",
+            },
+            {
+                "label": "Scheduled",
+                "value": str(len(timeline_preview)),
+                "note": "Εμφανίζονται στο Gantt",
+            },
+        ]
+    )
     with st.expander("➕ Νέα εργασία planning"):
         with st.form("task_form"):
             col1, col2 = st.columns(2)
@@ -1462,17 +2112,74 @@ def render_timeline_page(df):
         fig.update_layout(height=470)
         fig.update_yaxes(autorange="reversed")
         st.plotly_chart(fig, use_container_width=True)
-    show_table(current_df)
+    show_table(display_df)
 
 
 def render_tasks(df):
-    st.subheader("📋 Εργασίες")
-    show_table(normalize_task_df(df))
+    display_df = prepare_task_display_df(df)
+    doing_count = len(display_df[display_df["Κατάσταση"] == "Doing"]) if not display_df.empty else 0
+    done_count = len(display_df[display_df["Κατάσταση"] == "Done"]) if not display_df.empty else 0
+    todo_count = len(display_df[display_df["Κατάσταση"] == "To Do"]) if not display_df.empty else 0
+    render_page_banner(
+        "Tasks Board",
+        "Καθαρή λίστα όλων των εργασιών του project με έμφαση στην κατάσταση και την προτεραιότητα.",
+        [
+            f"{len(display_df)} tasks",
+            f"{doing_count} doing",
+            f"{done_count} done",
+        ],
+    )
+    render_stat_strip(
+        [
+            {
+                "label": "To Do",
+                "value": str(todo_count),
+                "note": "Έτοιμες για εκτέλεση",
+            },
+            {
+                "label": "Doing",
+                "value": str(doing_count),
+                "note": "Τρέχουν αυτή τη στιγμή",
+            },
+            {
+                "label": "Done",
+                "value": str(done_count),
+                "note": "Ολοκληρωμένες εργασίες",
+            },
+            {
+                "label": "Χώροι",
+                "value": str(count_unique_nonempty(display_df, "Χώρος")),
+                "note": "Κάλυψη χώρων",
+            },
+        ]
+    )
+    show_table(display_df)
 
 
 def render_checklist(df):
-    st.subheader("✅ Checklist Χώρων")
     current_df = prepare_checklist_df(df.copy())
+    current_summary = checklist_summary(current_df) if not current_df.empty else pd.DataFrame()
+    current_done = int(current_df[CHECK_COL_DONE].sum()) if not current_df.empty else 0
+    current_total = len(current_df)
+    active_rooms_preview = (
+        current_summary[current_summary["Κατάσταση"] == "Σε πρόοδο"]["Χώρος"].tolist()
+        if not current_summary.empty
+        else []
+    )
+
+    render_page_banner(
+        "Checklist Control",
+        "Κάθε αποθήκευση συγχρονίζει αυτόματα το Checklist με το Progress για να φαίνονται οι ενέργειες και στην παρακολούθηση εργασιών.",
+        [
+            "Auto-sync to Progress",
+            f"{current_done}/{current_total} done" if current_total else "Empty board",
+            f"{len(active_rooms_preview)} χώροι σε πρόοδο" if active_rooms_preview else "Ready to track",
+        ],
+    )
+    st.markdown(
+        '<div class="sync-badge">Auto-sync ενεργό: κάθε save ή διαγραφή ενημερώνει και το sheet Progress.</div>',
+        unsafe_allow_html=True,
+    )
 
     top1, top2 = st.columns([1.3, 1])
     with top1:
@@ -1480,8 +2187,8 @@ def render_checklist(df):
     with top2:
         if current_df.empty and st.button("Φόρτωση προτεινόμενου checklist", key="seed_checklist"):
             seeded_df = build_default_checklist_df()
-            if safe_write(SHEET_CHECKLIST, serialize_checklist_df(seeded_df)):
-                st.success("Το αρχικό checklist δημιουργήθηκε.")
+            if persist_checklist_and_progress(seeded_df):
+                st.success("Το αρχικό checklist δημιουργήθηκε και συγχρονίστηκε στο Progress.")
                 st.rerun()
 
     with st.expander("➕ Νέο custom item"):
@@ -1507,8 +2214,8 @@ def render_checklist(df):
                     },
                     CHECKLIST_COLUMNS,
                 )
-                if safe_write(SHEET_CHECKLIST, serialize_checklist_df(updated)):
-                    st.success("Το item προστέθηκε.")
+                if persist_checklist_and_progress(updated):
+                    st.success("Το item προστέθηκε και εμφανίζεται πλέον και στο Progress.")
                     st.rerun()
 
     if current_df.empty:
@@ -1517,10 +2224,30 @@ def render_checklist(df):
 
     summary = checklist_summary(current_df)
     active_rooms = summary[summary["Κατάσταση"] == "Σε πρόοδο"]["Χώρος"].tolist() if not summary.empty else []
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Σύνολο εργασιών", len(current_df))
-    c2.metric("Ολοκληρωμένες", int(current_df["Ολοκληρώθηκε"].sum()))
-    c3.metric("Ποσοστό ολοκλήρωσης", f"{(current_df['Ολοκληρώθηκε'].sum() / len(current_df) * 100):.0f}%")
+    render_stat_strip(
+        [
+            {
+                "label": "Σύνολο εργασιών",
+                "value": str(len(current_df)),
+                "note": "Checklist items",
+            },
+            {
+                "label": "Ολοκληρωμένες",
+                "value": str(int(current_df[CHECK_COL_DONE].sum())),
+                "note": f"{len(current_df) - int(current_df[CHECK_COL_DONE].sum())} απομένουν",
+            },
+            {
+                "label": "Ποσοστό ολοκλήρωσης",
+                "value": f"{(current_df[CHECK_COL_DONE].sum() / len(current_df) * 100):.0f}%",
+                "note": "Από το συνολικό checklist",
+            },
+            {
+                "label": "Sync status",
+                "value": "Live",
+                "note": "Checklist -> Progress",
+            },
+        ]
+    )
     if active_rooms:
         st.write(f"Χώροι που βρίσκονται σε πρόοδο: {', '.join(active_rooms)}")
     else:
@@ -1541,8 +2268,8 @@ def render_checklist(df):
             bool_cols=["Ολοκληρώθηκε"],
         )
         if st.button("💾 Αποθήκευση checklist", key="save_checklist"):
-            if safe_write(SHEET_CHECKLIST, serialize_checklist_df(edited)):
-                st.success("Το checklist αποθηκεύτηκε.")
+            if persist_checklist_and_progress(edited):
+                st.success("Το checklist αποθηκεύτηκε και συγχρονίστηκε στο Progress.")
                 st.rerun()
 
     with tabs[1]:
@@ -1555,13 +2282,46 @@ def render_checklist(df):
         )
         if should_delete and selected_id:
             new_df = delete_by_id(current_df, selected_id)
-            if safe_write(SHEET_CHECKLIST, serialize_checklist_df(new_df)):
-                st.success("Το item διαγράφηκε.")
+            if persist_checklist_and_progress(new_df):
+                st.success("Το item διαγράφηκε και αφαιρέθηκε από το Progress.")
                 st.rerun()
 
 
 def render_offers(df):
-    st.subheader("💼 Προσφορές")
+    total_offers = money_series(df, "Ποσό").sum() if not df.empty else 0.0
+    render_page_banner(
+        "Offers Desk",
+        "Συγκέντρωση προσφορών από παρόχους και γρήγορη σύγκριση κόστους ανά κατηγορία εργασίας.",
+        [
+            f"{len(df)} offers",
+            f"{count_unique_nonempty(df, 'Πάροχος')} providers",
+            f"Σύνολο {format_currency(total_offers)}",
+        ],
+    )
+    render_stat_strip(
+        [
+            {
+                "label": "Προσφορές",
+                "value": str(len(df)),
+                "note": "Καταγεγραμμένα quotes",
+            },
+            {
+                "label": "Providers",
+                "value": str(count_unique_nonempty(df, "Πάροχος")),
+                "note": "Μοναδικοί πάροχοι",
+            },
+            {
+                "label": "Κατηγορίες",
+                "value": str(count_unique_nonempty(df, "Κατηγορία")),
+                "note": "Work scopes",
+            },
+            {
+                "label": "Ονομαστικό σύνολο",
+                "value": format_currency(total_offers),
+                "note": "Άθροισμα ποσών",
+            },
+        ]
+    )
     with st.expander("➕ Νέα προσφορά"):
         with st.form("offer_form"):
             col1, col2 = st.columns(2)
@@ -1588,7 +2348,39 @@ def render_offers(df):
 
 
 def render_gallery(df):
-    st.subheader("📸 Gallery")
+    render_page_banner(
+        "Visual Gallery",
+        "Before, after και progress snapshots για να έχεις οπτικό ιστορικό της ανακαίνισης μέσα στο ίδιο control room.",
+        [
+            f"{len(df)} images",
+            f"{count_unique_nonempty(df, 'Χώρος')} rooms covered",
+            f"{count_unique_nonempty(df, 'Τύπος')} image types",
+        ],
+    )
+    render_stat_strip(
+        [
+            {
+                "label": "Εικόνες",
+                "value": str(len(df)),
+                "note": "Συνολικό οπτικό αρχείο",
+            },
+            {
+                "label": "Χώροι",
+                "value": str(count_unique_nonempty(df, "Χώρος")),
+                "note": "Με διαθέσιμο φωτογραφικό υλικό",
+            },
+            {
+                "label": "Progress shots",
+                "value": str(len(df[df["Τύπος"] == "Progress"])) if not df.empty and "Τύπος" in df.columns else "0",
+                "note": "Καταγραφή εξέλιξης",
+            },
+            {
+                "label": "Latest window",
+                "value": str(min(len(df), 10)),
+                "note": "Προβάλλονται τα πιο πρόσφατα",
+            },
+        ]
+    )
     st.caption("Για μεγάλα volumes προτείνεται αποθήκευση με URL (Cloud Storage), όχι base64 στο Sheet.")
     with st.expander("➕ Νέα εικόνα"):
         with st.form("gallery_form"):
@@ -1616,11 +2408,41 @@ def render_gallery(df):
 
 
 def render_analytics(df_exp, df_material, df_fee, df_check):
-    st.subheader("📊 Αναλύσεις")
     exp_total = money_series(df_exp, "Ποσό").sum()
     mat_total = money_series(df_material, "Σύνολο").sum()
-    st.metric("Σύνολο Πληρωμών", format_currency(exp_total))
-    st.metric("Σύνολο Materials Register", format_currency(mat_total))
+    render_page_banner(
+        "Analytics Hub",
+        "Συγκεντρωτικές αναλύσεις για πληρωμές, υλικά, checklist progress και αποκλίσεις budget έναντι actual.",
+        [
+            f"Payments {format_currency(exp_total)}",
+            f"Materials {format_currency(mat_total)}",
+            f"{len(df_check)} checklist rows",
+        ],
+    )
+    render_stat_strip(
+        [
+            {
+                "label": "Σύνολο πληρωμών",
+                "value": format_currency(exp_total),
+                "note": "Expenses filtered view",
+            },
+            {
+                "label": "Materials register",
+                "value": format_currency(mat_total),
+                "note": "Materials filtered view",
+            },
+            {
+                "label": "Budget lines",
+                "value": str(len(df_fee)),
+                "note": "Εγγραφές αμοιβών",
+            },
+            {
+                "label": "Checklist rows",
+                "value": str(len(df_check)),
+                "note": "Συμμετέχουν στις αναλύσεις",
+            },
+        ]
+    )
 
     if not df_exp.empty:
         exp_local = df_exp.copy()
@@ -1667,11 +2489,38 @@ def render_analytics(df_exp, df_material, df_fee, df_check):
 
 
 def render_calculator():
-    st.subheader("🧮 Calculator")
+    render_page_banner(
+        "Estimator & Calculator",
+        "Γρήγορα εργαλεία για προεκτίμηση κόστους και μεταφορά έτοιμων γραμμών στο Materials sheet.",
+        [
+            "Material estimator",
+            "Tile invoice model",
+            "Export to Materials",
+        ],
+    )
     mode = st.selectbox(
         "Τύπος υπολογισμού",
         ["Απλός υπολογιστής υλικών", "Τιμολόγιο πλακιδίων"],
         key="calculator_mode",
+    )
+    render_stat_strip(
+        [
+            {
+                "label": "Mode",
+                "value": mode,
+                "note": "Ενεργό εργαλείο υπολογισμού",
+            },
+            {
+                "label": "Output",
+                "value": "Live",
+                "note": "Άμεσο recalculation στα inputs",
+            },
+            {
+                "label": "Export",
+                "value": "Materials-ready",
+                "note": "Για το τιμολόγιο πλακιδίων",
+            },
+        ]
     )
 
     if mode == "Απλός υπολογιστής υλικών":
@@ -1894,9 +2743,18 @@ def render_calculator():
 # -----------------------------
 # MAIN
 # -----------------------------
-inject_v24_theme()
+inject_v3_theme()
+st.sidebar.markdown(
+    f"""
+    <div class="sidebar-brand">
+        <div class="sidebar-brand-title">Methana Earth & Fire</div>
+        <div class="sidebar-brand-subtitle">Renovation operations dashboard with budget, checklist, progress and material control.</div>
+        <div class="sidebar-brand-meta">{APP_VERSION} • Κατασκευαστής: {APP_BUILDER}</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 st.sidebar.markdown("### Πλοήγηση")
-st.sidebar.caption(f"{APP_VERSION} • Κατασκευαστής: {APP_BUILDER}")
 
 MENU_OPTIONS = [
     "🏠 Dashboard",
@@ -1994,5 +2852,3 @@ elif menu == "📊 Αναλύσεις":
     render_analytics(exp_filtered, mat_filtered, df_fees, df_checklist)
 elif menu == "🧮 Calculator":
     render_calculator()
-
-
